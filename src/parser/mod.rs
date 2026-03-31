@@ -9,17 +9,30 @@ struct DiamemParser;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
     Comment(String),
-    Connection { from: String, to: String },
-    LabeledConnection { from: String, to: String, label: String },
-    Sequence { from: String, to: String, message: String },
-    Grouping { name: String, nodes: Vec<String> },
+    Connection {
+        from: String,
+        to: String,
+    },
+    LabeledConnection {
+        from: String,
+        to: String,
+        label: String,
+    },
+    Sequence {
+        from: String,
+        to: String,
+        message: String,
+    },
+    Grouping {
+        name: String,
+        nodes: Vec<String>,
+    },
     Node(String),
 }
 
 /// Parse DSL source into a list of statements.
 pub fn parse(input: &str) -> Result<Vec<Statement>, String> {
-    let pairs = DiamemParser::parse(Rule::diagram, input)
-        .map_err(|e| format!("{e}"))?;
+    let pairs = DiamemParser::parse(Rule::diagram, input).map_err(|e| format!("{e}"))?;
 
     let mut statements = Vec::new();
 
@@ -69,7 +82,13 @@ pub fn parse(input: &str) -> Result<Vec<Statement>, String> {
                     statements.push(Statement::Grouping { name, nodes });
                 }
                 Rule::node => {
-                    let ident = inner.into_inner().next().unwrap().as_str().trim().to_string();
+                    let ident = inner
+                        .into_inner()
+                        .next()
+                        .unwrap()
+                        .as_str()
+                        .trim()
+                        .to_string();
                     statements.push(Statement::Node(ident));
                 }
                 Rule::EOI => {}

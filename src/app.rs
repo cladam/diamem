@@ -129,10 +129,7 @@ impl eframe::App for DiamemApp {
 
                     // Export path
                     ui.label("Path:");
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.export_path)
-                            .desired_width(180.0),
-                    );
+                    ui.add(egui::TextEdit::singleline(&mut self.export_path).desired_width(180.0));
 
                     ui.separator();
 
@@ -208,10 +205,7 @@ impl eframe::App for DiamemApp {
                         );
                     });
             } else {
-                ui.colored_label(
-                    egui::Color32::from_rgb(220, 80, 80),
-                    "⚠ Parse errors:",
-                );
+                ui.colored_label(egui::Color32::from_rgb(220, 80, 80), "⚠ Parse errors:");
                 ui.add_space(8.0);
                 ui.label(
                     egui::RichText::new(&self.mermaid_output)
@@ -222,4 +216,3 @@ impl eframe::App for DiamemApp {
         });
     }
 }
-
