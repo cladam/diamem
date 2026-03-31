@@ -8,8 +8,6 @@ use serde::{Deserialize, Serialize};
 pub struct DiamemApp {
     /// Raw DSL text entered by the user.
     dsl_source: String,
-    /// Tags to embed in the exported filename.
-    export_tags: String,
     /// Export directory path.
     export_path: String,
     /// Last status message shown in the footer.
@@ -40,7 +38,6 @@ impl Default for DiamemApp {
                           Process -[validate]-> Check\n\
                           Check -> Done\n"
                 .to_string(),
-            export_tags: String::new(),
             export_path: "~/Desktop".to_string(),
             status_message: String::new(),
             mermaid_output: String::new(),
@@ -133,16 +130,6 @@ impl eframe::App for DiamemApp {
 
                     ui.separator();
 
-                    // Tags input
-                    ui.label(egui::RichText::new("Tags:").color(theme::TEXT_SECONDARY));
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.export_tags)
-                            .desired_width(200.0)
-                            .hint_text("e.g. architecture, v2"),
-                    );
-
-                    ui.separator();
-
                     // Export path
                     ui.label(egui::RichText::new("Path:").color(theme::TEXT_SECONDARY));
                     ui.add(egui::TextEdit::singleline(&mut self.export_path).desired_width(180.0));
@@ -151,7 +138,7 @@ impl eframe::App for DiamemApp {
 
                     // The big export button — Quiet Amber accent
                     let export_btn = egui::Button::new(
-                        egui::RichText::new("⬆ Commit to Shotext")
+                        egui::RichText::new("⬆ Commit to shotext")
                             .size(16.0)
                             .strong()
                             .color(theme::DARK_BG),
@@ -215,7 +202,7 @@ impl eframe::App for DiamemApp {
             )
             .show(ctx, |ui| {
                 ui.label(
-                    egui::RichText::new("🔍 Diagram Preview")
+                    egui::RichText::new("Diagram Preview")
                         .heading()
                         .color(theme::MUTED_TEAL),
                 );
