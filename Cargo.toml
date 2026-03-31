@@ -12,5 +12,8 @@ categories = ["command-line-utilities", "development-tools"]
 edition = "2024"
 
 [dependencies]
+eframe = { version = "0.31", features = ["ron", "serde"] }
+pest = "2.8.6"
+pest_derive = "2.8.6"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
