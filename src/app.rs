@@ -116,7 +116,11 @@ impl eframe::App for DiamemApp {
         // --- Export Footer (Bottom Panel) ---
         egui::TopBottomPanel::bottom("export_footer")
             .min_height(60.0)
-            .frame(egui::Frame::new().fill(theme::SURFACE).inner_margin(egui::Margin::same(8)))
+            .frame(
+                egui::Frame::new()
+                    .fill(theme::SURFACE)
+                    .inner_margin(egui::Margin::same(8)),
+            )
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     // Status indicator
@@ -141,10 +145,7 @@ impl eframe::App for DiamemApp {
 
                     // Export path
                     ui.label(egui::RichText::new("Path:").color(theme::TEXT_SECONDARY));
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.export_path)
-                            .desired_width(180.0),
-                    );
+                    ui.add(egui::TextEdit::singleline(&mut self.export_path).desired_width(180.0));
 
                     ui.separator();
 
@@ -178,7 +179,11 @@ impl eframe::App for DiamemApp {
             .default_width(500.0)
             .min_width(300.0)
             .resizable(true)
-            .frame(egui::Frame::new().fill(theme::DARK_BG).inner_margin(egui::Margin::same(12)))
+            .frame(
+                egui::Frame::new()
+                    .fill(theme::DARK_BG)
+                    .inner_margin(egui::Margin::same(12)),
+            )
             .show(ctx, |ui| {
                 ui.label(
                     egui::RichText::new("✏ DSL Editor")
@@ -203,7 +208,11 @@ impl eframe::App for DiamemApp {
 
         // --- Right Panel: "The Memory" (Preview) ---
         egui::CentralPanel::default()
-            .frame(egui::Frame::new().fill(theme::PANEL_BG).inner_margin(egui::Margin::same(12)))
+            .frame(
+                egui::Frame::new()
+                    .fill(theme::PANEL_BG)
+                    .inner_margin(egui::Margin::same(12)),
+            )
             .show(ctx, |ui| {
                 ui.label(
                     egui::RichText::new("🔍 Diagram Preview")
@@ -249,4 +258,3 @@ impl eframe::App for DiamemApp {
         eframe::set_value(storage, eframe::APP_KEY, self);
     }
 }
-

@@ -10,18 +10,18 @@ use eframe::egui;
 
 // ── Palette constants ────────────────────────────────────────────────────────
 
-pub const DARK_BG: egui::Color32       = egui::Color32::from_rgb(0x12, 0x12, 0x12);
-pub const PANEL_BG: egui::Color32      = egui::Color32::from_rgb(0x1A, 0x1A, 0x1A);
-pub const SURFACE: egui::Color32       = egui::Color32::from_rgb(0x22, 0x22, 0x22);
+pub const DARK_BG: egui::Color32 = egui::Color32::from_rgb(0x12, 0x12, 0x12);
+pub const PANEL_BG: egui::Color32 = egui::Color32::from_rgb(0x1A, 0x1A, 0x1A);
+pub const SURFACE: egui::Color32 = egui::Color32::from_rgb(0x22, 0x22, 0x22);
 pub const SURFACE_HOVER: egui::Color32 = egui::Color32::from_rgb(0x2C, 0x2C, 0x2C);
 
-pub const MUTED_TEAL: egui::Color32    = egui::Color32::from_rgb(0x5A, 0x9B, 0x80);
-pub const QUIET_AMBER: egui::Color32   = egui::Color32::from_rgb(0xC0, 0x8A, 0x3E);
-pub const MUTED_RED: egui::Color32     = egui::Color32::from_rgb(0xB3, 0x5F, 0x5F);
+pub const MUTED_TEAL: egui::Color32 = egui::Color32::from_rgb(0x5A, 0x9B, 0x80);
+pub const QUIET_AMBER: egui::Color32 = egui::Color32::from_rgb(0xC0, 0x8A, 0x3E);
+pub const MUTED_RED: egui::Color32 = egui::Color32::from_rgb(0xB3, 0x5F, 0x5F);
 
-pub const TEXT_PRIMARY: egui::Color32  = egui::Color32::from_rgb(0xE0, 0xE0, 0xE0);
-pub const TEXT_SECONDARY: egui::Color32= egui::Color32::from_rgb(0x90, 0x90, 0x90);
-pub const TEXT_MUTED: egui::Color32    = egui::Color32::from_rgb(0x60, 0x60, 0x60);
+pub const TEXT_PRIMARY: egui::Color32 = egui::Color32::from_rgb(0xE0, 0xE0, 0xE0);
+pub const TEXT_SECONDARY: egui::Color32 = egui::Color32::from_rgb(0x90, 0x90, 0x90);
+pub const TEXT_MUTED: egui::Color32 = egui::Color32::from_rgb(0x60, 0x60, 0x60);
 
 // ── Apply theme ──────────────────────────────────────────────────────────────
 
