@@ -96,3 +96,60 @@ fn unclosed_label_bracket_errors() {
     let result = parser::parse("A -[broken -> B\n");
     assert!(result.is_err());
 }
+
+// ── New syntax: chain connections ───────────────────────────────────────────
+
+#[test]
+fn chain_connection_produces_multiple_connections() {
+    let stmts = parser::parse("A -> B -> C -> D\n").unwrap();
+    assert_eq!(stmts.len(), 3);
+    assert!(
+        stmts
+            .iter()
+            .all(|s| matches!(s, Statement::Connection { .. }))
+    );
+}
+
+// ── New syntax: @ header grouping ──────────────────────────────────────────
+
+#[test]
+fn header_grouping_works_like_bracket_grouping() {
+    let bracket = parser::parse("[Backend] { API, DB }\n").unwrap();
+    let header = parser::parse("@ Backend: API, DB\n").unwrap();
+    assert_eq!(bracket, header);
+}
+
+// ── New syntax: -(label)> paren labeled ────────────────────────────────────
+
+#[test]
+fn paren_labeled_works_like_bracket_labeled() {
+    let bracket = parser::parse("A -[sends]-> B\n").unwrap();
+    let paren = parser::parse("A -(sends)> B\n").unwrap();
+    assert_eq!(bracket, paren);
+}
+
+// ── All syntax types together ──────────────────────────────────────────────
+
+#[test]
+fn parse_all_syntax_types_including_new() {
+    let input = "\
+# comment
+A -> B -> C
+X -(label)> Y
+@ Group: N1, N2
+[Old] { N3, N4 }
+User > App : Msg
+Solo
+";
+    let stmts = parser::parse(input).unwrap();
+    // comment(1) + chain(2 connections) + paren_label(1) + header_group(1) + bracket_group(1) + sequence(1) + node(1) = 8
+    assert_eq!(stmts.len(), 8);
+    assert!(matches!(&stmts[0], Statement::Comment(_)));
+    assert!(matches!(&stmts[1], Statement::Connection { .. }));
+    assert!(matches!(&stmts[2], Statement::Connection { .. }));
+    assert!(matches!(&stmts[3], Statement::LabeledConnection { .. }));
+    assert!(matches!(&stmts[4], Statement::Grouping { .. }));
+    assert!(matches!(&stmts[5], Statement::Grouping { .. }));
+    assert!(matches!(&stmts[6], Statement::Sequence { .. }));
+    assert!(matches!(&stmts[7], Statement::Node(_)));
+}

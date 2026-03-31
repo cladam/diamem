@@ -137,3 +137,61 @@ fn error_message_is_nonempty() {
     let err = dsl_to_mermaid("{{{{ broken").unwrap_err();
     assert!(!err.is_empty());
 }
+
+// ── New features: chain connections ─────────────────────────────────────────
+
+#[test]
+fn end_to_end_chain_connection() {
+    let mermaid = dsl_to_mermaid("Scaffold -> Parser -> BasicUI -> SVGRender\n").unwrap();
+    assert!(mermaid.contains("Scaffold --> Parser"));
+    assert!(mermaid.contains("Parser --> BasicUI"));
+    assert!(mermaid.contains("BasicUI --> SVGRender"));
+}
+
+// ── New features: @ header grouping ─────────────────────────────────────────
+
+#[test]
+fn end_to_end_header_grouping() {
+    let mermaid = dsl_to_mermaid("@ Phase 1: Scaffold, Parser, BasicUI\n").unwrap();
+    assert!(mermaid.contains("subgraph Phase 1"));
+    assert!(mermaid.contains("Scaffold"));
+    assert!(mermaid.contains("Parser"));
+    assert!(mermaid.contains("BasicUI"));
+    assert!(mermaid.contains("end"));
+}
+
+// ── New features: -(label)> paren labeled connection ────────────────────────
+
+#[test]
+fn end_to_end_paren_labeled_connection() {
+    let mermaid = dsl_to_mermaid("Auth -(token)> API\n").unwrap();
+    assert!(mermaid.contains("Auth -->|token| API"));
+}
+
+// ── New features: realistic mixed diagram ───────────────────────────────────
+
+#[test]
+fn realistic_mixed_new_and_old_syntax() {
+    let input = "\
+# Simplified workflow
+@ Phase1: Scaffold, Parser, BasicUI
+@ Phase2: SVGRender, LivePreview
+[Infra] { Kafka, Postgres, Redis }
+
+Scaffold -> Parser -> BasicUI
+API -(queries)> Postgres
+API -[caches]-> Redis
+User > API : POST /login
+";
+    let mermaid = dsl_to_mermaid(input).unwrap();
+
+    assert!(mermaid.starts_with("graph TD\n"));
+    assert!(mermaid.contains("subgraph Phase1"));
+    assert!(mermaid.contains("subgraph Phase2"));
+    assert!(mermaid.contains("subgraph Infra"));
+    assert!(mermaid.contains("Scaffold --> Parser"));
+    assert!(mermaid.contains("Parser --> BasicUI"));
+    assert!(mermaid.contains("API -->|queries| Postgres"));
+    assert!(mermaid.contains("API -->|caches| Redis"));
+    assert!(mermaid.contains("User ->> API: POST /login"));
+}

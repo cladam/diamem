@@ -51,12 +51,26 @@ pub fn parse(input: &str) -> Result<Vec<Statement>, String> {
                     statements.push(Statement::Comment(text));
                 }
                 Rule::connection => {
-                    let mut inner = inner.into_inner();
-                    let from = inner.next().unwrap().as_str().trim().to_string();
-                    let to = inner.next().unwrap().as_str().trim().to_string();
-                    statements.push(Statement::Connection { from, to });
+                    let idents: Vec<String> = inner
+                        .into_inner()
+                        .filter(|p| p.as_rule() == Rule::ident)
+                        .map(|p| p.as_str().trim().to_string())
+                        .collect();
+                    for pair in idents.windows(2) {
+                        statements.push(Statement::Connection {
+                            from: pair[0].clone(),
+                            to: pair[1].clone(),
+                        });
+                    }
                 }
                 Rule::labeled_connection => {
+                    let mut inner = inner.into_inner();
+                    let from = inner.next().unwrap().as_str().trim().to_string();
+                    let label = inner.next().unwrap().as_str().trim().to_string();
+                    let to = inner.next().unwrap().as_str().trim().to_string();
+                    statements.push(Statement::LabeledConnection { from, to, label });
+                }
+                Rule::paren_labeled_connection => {
                     let mut inner = inner.into_inner();
                     let from = inner.next().unwrap().as_str().trim().to_string();
                     let label = inner.next().unwrap().as_str().trim().to_string();
@@ -70,7 +84,7 @@ pub fn parse(input: &str) -> Result<Vec<Statement>, String> {
                     let message = inner.next().unwrap().as_str().trim().to_string();
                     statements.push(Statement::Sequence { from, to, message });
                 }
-                Rule::grouping => {
+                Rule::grouping | Rule::header_grouping => {
                     let mut inner = inner.into_inner();
                     let name = inner.next().unwrap().as_str().trim().to_string();
                     let node_list = inner.next().unwrap();
@@ -244,6 +258,112 @@ mod tests {
     fn parse_standalone_node() {
         let stmts = parse("Standalone\n").unwrap();
         assert_eq!(stmts, vec![Statement::Node("Standalone".into())]);
+    }
+
+    // ── Chain connections ────────────────────────────────────────────────
+
+    #[test]
+    fn parse_chain_connection() {
+        let stmts = parse("A -> B -> C\n").unwrap();
+        assert_eq!(
+            stmts,
+            vec![
+                Statement::Connection {
+                    from: "A".into(),
+                    to: "B".into(),
+                },
+                Statement::Connection {
+                    from: "B".into(),
+                    to: "C".into(),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_long_chain() {
+        let stmts = parse("A -> B -> C -> D -> E\n").unwrap();
+        assert_eq!(stmts.len(), 4);
+        assert_eq!(
+            stmts[0],
+            Statement::Connection {
+                from: "A".into(),
+                to: "B".into()
+            }
+        );
+        assert_eq!(
+            stmts[3],
+            Statement::Connection {
+                from: "D".into(),
+                to: "E".into()
+            }
+        );
+    }
+
+    // ── Header grouping (@) ─────────────────────────────────────────────
+
+    #[test]
+    fn parse_header_grouping() {
+        let stmts = parse("@ Backend: API, DB\n").unwrap();
+        assert_eq!(
+            stmts,
+            vec![Statement::Grouping {
+                name: "Backend".into(),
+                nodes: vec!["API".into(), "DB".into()],
+            }]
+        );
+    }
+
+    #[test]
+    fn parse_header_grouping_with_spaces_in_name() {
+        let stmts = parse("@ Phase 1: Scaffold, Parser, BasicUI\n").unwrap();
+        assert_eq!(
+            stmts,
+            vec![Statement::Grouping {
+                name: "Phase 1".into(),
+                nodes: vec!["Scaffold".into(), "Parser".into(), "BasicUI".into()],
+            }]
+        );
+    }
+
+    #[test]
+    fn parse_header_grouping_single_node() {
+        let stmts = parse("@ Solo: OnlyOne\n").unwrap();
+        assert_eq!(
+            stmts,
+            vec![Statement::Grouping {
+                name: "Solo".into(),
+                nodes: vec!["OnlyOne".into()],
+            }]
+        );
+    }
+
+    // ── Paren labeled connection ────────────────────────────────────────
+
+    #[test]
+    fn parse_paren_labeled_connection() {
+        let stmts = parse("A -(sends)> B\n").unwrap();
+        assert_eq!(
+            stmts,
+            vec![Statement::LabeledConnection {
+                from: "A".into(),
+                to: "B".into(),
+                label: "sends".into(),
+            }]
+        );
+    }
+
+    #[test]
+    fn parse_paren_labeled_connection_with_spaces_in_label() {
+        let stmts = parse("X -(http post)> Y\n").unwrap();
+        assert_eq!(
+            stmts,
+            vec![Statement::LabeledConnection {
+                from: "X".into(),
+                to: "Y".into(),
+                label: "http post".into(),
+            }]
+        );
     }
 
     // ── Multiple statements ──────────────────────────────────────────────

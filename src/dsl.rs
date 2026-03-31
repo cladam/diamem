@@ -105,4 +105,46 @@ B -[validate]-> C
         let result = dsl_to_mermaid("{{{{ broken");
         assert!(result.is_err());
     }
+
+    // ── New syntax features ─────────────────────────────────────────────
+
+    #[test]
+    fn mermaid_chain_connection() {
+        let result = dsl_to_mermaid("A -> B -> C\n").unwrap();
+        assert!(result.contains("A --> B"));
+        assert!(result.contains("B --> C"));
+    }
+
+    #[test]
+    fn mermaid_header_grouping() {
+        let result = dsl_to_mermaid("@ Backend: API, DB\n").unwrap();
+        assert!(result.contains("subgraph Backend"));
+        assert!(result.contains("API"));
+        assert!(result.contains("DB"));
+        assert!(result.contains("end"));
+    }
+
+    #[test]
+    fn mermaid_paren_labeled_connection() {
+        let result = dsl_to_mermaid("A -(sends)> B\n").unwrap();
+        assert!(result.contains("A -->|sends| B"));
+    }
+
+    #[test]
+    fn mermaid_mixed_old_and_new_syntax() {
+        let input = "\
+@ Phase1: Scaffold, Parser, BasicUI
+[Phase2] { SVGRender, LivePreview }
+Scaffold -> Parser -> BasicUI
+API -(queries)> DB
+API -[caches]-> Redis
+";
+        let result = dsl_to_mermaid(input).unwrap();
+        assert!(result.contains("subgraph Phase1"));
+        assert!(result.contains("subgraph Phase2"));
+        assert!(result.contains("Scaffold --> Parser"));
+        assert!(result.contains("Parser --> BasicUI"));
+        assert!(result.contains("API -->|queries| DB"));
+        assert!(result.contains("API -->|caches| Redis"));
+    }
 }

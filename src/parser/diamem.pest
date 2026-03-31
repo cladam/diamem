@@ -2,11 +2,15 @@
 
 diagram = { SOI ~ NEWLINE* ~ (statement ~ NEWLINE*)* ~ EOI }
 
-statement = _{ comment | grouping | sequence | labeled_connection | connection | node }
+statement = _{ comment | header_grouping | grouping | sequence | labeled_connection | paren_labeled_connection | connection | node }
 
 // # This is a comment
 comment = { "#" ~ comment_text }
 comment_text = { (!NEWLINE ~ ANY)* }
+
+// @ Group Name: A, B, C
+header_grouping = { "@" ~ header_group_name ~ ":" ~ node_list }
+header_group_name = @{ (!(":" | NEWLINE) ~ ANY)+ }
 
 // [Group Name] { A, B, C }
 grouping = { "[" ~ group_name ~ "]" ~ "{" ~ node_list ~ "}" }
@@ -19,14 +23,18 @@ sequence = { ident ~ ">" ~ ident ~ ":" ~ label }
 // A -[action]-> B
 labeled_connection = { ident ~ "-[" ~ label ~ "]->" ~ ident }
 
-// A -> B
-connection = { ident ~ "->" ~ ident }
+// A -(action)> B
+paren_labeled_connection = { ident ~ "-(" ~ paren_label ~ ")>" ~ ident }
+paren_label = @{ (!(")>" | NEWLINE) ~ ANY)+ }
+
+// A -> B  or  A -> B -> C (chain)
+connection = { ident ~ ("->" ~ ident)+ }
 
 // Standalone node
 node = { ident }
 
 // An identifier: one or more non-delimiter characters (trimmed by pest)
-ident = @{ (!("->" | "-[" | ">" | ":" | "[" | "]" | "{" | "}" | "," | NEWLINE) ~ ANY)+ }
+ident = @{ (!("->" | "-[" | "-(" | ">" | ":" | "[" | "]" | "{" | "}" | "," | "@" | NEWLINE) ~ ANY)+ }
 
 // A label: one or more characters until a delimiter
 label = @{ (!("]->" | ":" | NEWLINE) ~ ANY)+ }

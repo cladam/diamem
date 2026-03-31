@@ -45,14 +45,15 @@ impl Default for DiamemApp {
         Self {
             dsl_source: "# Type your diagram DSL here\n\
                           # Examples:\n\
-                          #   A -> B\n\
-                          #   A -[sends]-> B\n\
-                          #   User > App : Request\n\
-                          #   [Group] { A, B }\n\
+                          #   A -> B           (connection)\n\
+                          #   A -> B -> C      (chain)\n\
+                          #   A -(sends)> B    (labeled)\n\
+                          #   A -[sends]-> B   (labeled, classic)\n\
+                          #   User > App : Req (sequence)\n\
+                          #   @ Group: A, B    (grouping)\n\
+                          #   [Group] { A, B } (grouping, classic)\n\
                           \n\
-                          Start -> Process\n\
-                          Process -[validate]-> Check\n\
-                          Check -> Done\n"
+                          Start -> Process -> Check -> Done\n"
                 .to_string(),
             export_path: "~/Desktop".to_string(),
             status_message: String::new(),

@@ -2,14 +2,17 @@
 
 ### Syntax at a glance
 
-| What       | Syntax            | Example                     |
-|------------|-------------------|-----------------------------|
-| Comment    | `# text`          | `# this is ignored`         |
-| Connection | `A -> B`          | `Code -> Deploy`            |
-| Labeled    | `A -[label]-> B`  | `API -[REST]-> DB`          |
-| Sequence   | `A > B : Message` | `User > App : Login`        |
-| Grouping   | `[Name] { A, B }` | `[Backend] { API, Worker }` |
-| Node       | `Name`            | `Standalone`                |
+| What            | Syntax              | Example                       |
+|-----------------|---------------------|-------------------------------|
+| Comment         | `# text`            | `# this is ignored`           |
+| Connection      | `A -> B`            | `Code -> Deploy`              |
+| Chain           | `A -> B -> C`       | `Code -> Build -> Deploy`     |
+| Labeled (old)   | `A -[label]-> B`    | `API -[REST]-> DB`            |
+| Labeled (new)   | `A -(label)> B`     | `API -(REST)> DB`             |
+| Sequence        | `A > B : Message`   | `User > App : Login`          |
+| Grouping (old)  | `[Name] { A, B }`   | `[Backend] { API, Worker }`   |
+| Grouping (new)  | `@ Name: A, B`      | `@ Backend: API, Worker`      |
+| Node            | `Name`              | `Standalone`                  |
 
 ---
 
@@ -22,9 +25,9 @@
 WebApp -> API
 MobileApp -> API
 CLI -> API
-API -[queries]-> Postgres
-API -[caches]-> Redis
-Worker -[uploads]-> S3
+API -(queries)> Postgres
+API -(caches)> Redis
+Worker -(uploads)> S3
 ```
 
 ### Example 2 — Sequence: User Login
@@ -39,52 +42,38 @@ API > Browser : 200 OK + token
 Browser > User : Dashboard loaded
 ```
 
-### Example 3 — Mindmap: Life Routine
+### Example 3 — Mindmap: Life Routine (using chains)
 ```
-[Morning] { Wake, Coffee, Review }
-[Deep Work] { Code, Design, Write }
-[Wind Down] { Walk, Read, Journal }
+@ Morning: Wake, Coffee, Review
+@ DeepWork: Code, Design, Write
+@ WindDown: Walk, Read, Journal
 
-Wake -> Coffee
-Coffee -> Review
-Review -> Code
-Code -> Design
-Design -> Write
-Write -> Walk
-Walk -> Read
-Read -> Journal
+Wake -> Coffee -> Review -> Code -> Design -> Write -> Walk -> Read -> Journal
 ```
 
-### Example 4 — Mindmap: ADHD Task Breakdown
+### Example 4 — Mindmap: ADHD Task Breakdown (using @ and chains)
 ```
-[Phase1] { Scaffold, Parser, BasicUI }
-[Phase2] { SVGRender, LivePreview }
-[Phase3] { PNGExport, ShotextLink }
-[Phase4] { Themes, Shortcuts, Polish }
+@ Phase1: Scaffold, Parser, BasicUI
+@ Phase2: SVGRender, LivePreview
+@ Phase3: PNGExport, ShotextLink
+@ Phase4: Themes, Shortcuts, Polish
 
-Scaffold -> Parser
-Parser -> BasicUI
-BasicUI -> SVGRender
-SVGRender -> LivePreview
-LivePreview -> PNGExport
-PNGExport -> ShotextLink
-ShotextLink -> Themes
-Themes -> Shortcuts
-Shortcuts -> Polish
+Scaffold -> Parser -> BasicUI -> SVGRender -> LivePreview
+LivePreview -> PNGExport -> ShotextLink -> Themes -> Shortcuts -> Polish
 ```
 
 ### Example 5 — Mixed: Microservices + Sequence
 ```
-[Gateway] { APIGateway }
-[Services] { UserSvc, OrderSvc, PaymentSvc }
-[Infra] { Kafka, Postgres, Redis }
+@ Gateway: APIGateway
+@ Services: UserSvc, OrderSvc, PaymentSvc
+@ Infra: Kafka, Postgres, Redis
 
-APIGateway -[REST]-> UserSvc
-APIGateway -[REST]-> OrderSvc
-OrderSvc -[event]-> Kafka
-Kafka -[consumes]-> PaymentSvc
+APIGateway -(REST)> UserSvc
+APIGateway -(REST)> OrderSvc
+OrderSvc -(event)> Kafka
+Kafka -(consumes)> PaymentSvc
 UserSvc -[reads]-> Postgres
-PaymentSvc -[caches]-> Redis
+PaymentSvc -(caches)> Redis
 
 # Checkout sequence
 User > APIGateway : POST /checkout
@@ -96,4 +85,4 @@ OrderSvc > APIGateway : Order complete
 APIGateway > User : 200 OK
 ```
 
-> **Tip:** You can mix all syntax types freely in one diagram. Groups define clusters, `->` shows flow, `-[label]->` adds context, and `>` `:` shows message sequences.
+> **Tip:** You can mix all syntax types freely in one diagram. Both `[Group] { ... }` and `@ Group: ...` define clusters. Both `-[label]->` and `-(label)>` add labeled edges. Use `->` chains to lay out linear flows in a single line, and `> :` for message sequences.

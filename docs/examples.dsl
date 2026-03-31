@@ -66,32 +66,30 @@ Index > User : Diagram found via search
 # ─── MINDMAP: ADHD Task Breakdown ────────────────────────────
 
 # Break a big task into small, doable chunks
-[Phase1] { Scaffold, Parser, BasicUI }
-[Phase2] { SVGRender, LivePreview }
-[Phase3] { PNGExport, ShotextLink }
-[Phase4] { Themes, Shortcuts, Polish }
+# Uses @ header grouping (simpler than [Group] { ... })
+@ Phase1: Scaffold, Parser, BasicUI
+@ Phase2: SVGRender, LivePreview
+@ Phase3: PNGExport, ShotextLink
+@ Phase4: Themes, Shortcuts, Polish
 
-Scaffold -> Parser
-Parser -> BasicUI
-BasicUI -> SVGRender
-SVGRender -> LivePreview
-LivePreview -> PNGExport
-PNGExport -> ShotextLink
-ShotextLink -> Themes
-Themes -> Shortcuts
-Shortcuts -> Polish
+# Chain connections: whole flow in fewer lines
+Scaffold -> Parser -> BasicUI -> SVGRender -> LivePreview
+LivePreview -> PNGExport -> ShotextLink -> Themes -> Shortcuts -> Polish
 
 
 # ─── MIXED: Microservice Communication ──────────────────────
 
-[Gateway] { APIGateway }
-[Services] { UserSvc, OrderSvc, PaymentSvc }
-[Infra] { Kafka, Postgres, Redis }
+@ Gateway: APIGateway
+@ Services: UserSvc, OrderSvc, PaymentSvc
+@ Infra: Kafka, Postgres, Redis
 
-APIGateway -[REST]-> UserSvc
-APIGateway -[REST]-> OrderSvc
-OrderSvc -[event]-> Kafka
-Kafka -[consumes]-> PaymentSvc
+# -(label)> is the cleaner labeled syntax
+APIGateway -(REST)> UserSvc
+APIGateway -(REST)> OrderSvc
+OrderSvc -(event)> Kafka
+Kafka -(consumes)> PaymentSvc
+
+# Classic -[label]-> still works too
 UserSvc -[reads]-> Postgres
 OrderSvc -[reads]-> Postgres
 PaymentSvc -[caches]-> Redis
