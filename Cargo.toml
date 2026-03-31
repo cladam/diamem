@@ -1,0 +1,16 @@
+[package]
+name = "diamem"
+version = "0.1.0"
+authors = ["Claes Adamsson <claes.adamsson@gmail.com>"]
+homepage = "https://cladam.github.io/"
+repository = "https://github.com/cladam/diamem"
+readme = "README.md"
+license = "MIT"
+description = "A desktop utility to 'live-code' visual diagrams using a custom DSL"
+keywords = ["cli", "diagrams", "dsl", "screenshots"]
+categories = ["command-line-utilities", "development-tools"]
+edition = "2024"
+
+[dependencies]
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
