@@ -99,3 +99,184 @@ pub fn parse(input: &str) -> Result<Vec<Statement>, String> {
 
     Ok(statements)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── Comment ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn parse_comment() {
+        let stmts = parse("# hello world\n").unwrap();
+        assert_eq!(stmts, vec![Statement::Comment("hello world".into())]);
+    }
+
+    #[test]
+    fn parse_comment_empty() {
+        let stmts = parse("#\n").unwrap();
+        assert_eq!(stmts, vec![Statement::Comment(String::new())]);
+    }
+
+    // ── Connection ───────────────────────────────────────────────────────
+
+    #[test]
+    fn parse_simple_connection() {
+        let stmts = parse("A -> B\n").unwrap();
+        assert_eq!(
+            stmts,
+            vec![Statement::Connection {
+                from: "A".into(),
+                to: "B".into(),
+            }]
+        );
+    }
+
+    #[test]
+    fn parse_connection_multiword_idents() {
+        let stmts = parse("ServiceA -> ServiceB\n").unwrap();
+        assert_eq!(
+            stmts,
+            vec![Statement::Connection {
+                from: "ServiceA".into(),
+                to: "ServiceB".into(),
+            }]
+        );
+    }
+
+    // ── Labeled connection ───────────────────────────────────────────────
+
+    #[test]
+    fn parse_labeled_connection() {
+        let stmts = parse("A -[sends]-> B\n").unwrap();
+        assert_eq!(
+            stmts,
+            vec![Statement::LabeledConnection {
+                from: "A".into(),
+                to: "B".into(),
+                label: "sends".into(),
+            }]
+        );
+    }
+
+    #[test]
+    fn parse_labeled_connection_with_spaces_in_label() {
+        let stmts = parse("X -[http post]-> Y\n").unwrap();
+        assert_eq!(
+            stmts,
+            vec![Statement::LabeledConnection {
+                from: "X".into(),
+                to: "Y".into(),
+                label: "http post".into(),
+            }]
+        );
+    }
+
+    // ── Sequence ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn parse_sequence() {
+        let stmts = parse("User > App : Request\n").unwrap();
+        assert_eq!(
+            stmts,
+            vec![Statement::Sequence {
+                from: "User".into(),
+                to: "App".into(),
+                message: "Request".into(),
+            }]
+        );
+    }
+
+    #[test]
+    fn parse_sequence_long_message() {
+        let stmts = parse("Client > Server : POST /api/data\n").unwrap();
+        assert_eq!(
+            stmts,
+            vec![Statement::Sequence {
+                from: "Client".into(),
+                to: "Server".into(),
+                message: "POST /api/data".into(),
+            }]
+        );
+    }
+
+    // ── Grouping ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn parse_grouping() {
+        let stmts = parse("[Backend] { API, DB }\n").unwrap();
+        assert_eq!(
+            stmts,
+            vec![Statement::Grouping {
+                name: "Backend".into(),
+                nodes: vec!["API".into(), "DB".into()],
+            }]
+        );
+    }
+
+    #[test]
+    fn parse_grouping_single_node() {
+        let stmts = parse("[Solo] { OnlyOne }\n").unwrap();
+        assert_eq!(
+            stmts,
+            vec![Statement::Grouping {
+                name: "Solo".into(),
+                nodes: vec!["OnlyOne".into()],
+            }]
+        );
+    }
+
+    #[test]
+    fn parse_grouping_name_with_spaces() {
+        let stmts = parse("[My Group] { A, B, C }\n").unwrap();
+        assert_eq!(
+            stmts,
+            vec![Statement::Grouping {
+                name: "My Group".into(),
+                nodes: vec!["A".into(), "B".into(), "C".into()],
+            }]
+        );
+    }
+
+    // ── Node ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn parse_standalone_node() {
+        let stmts = parse("Standalone\n").unwrap();
+        assert_eq!(stmts, vec![Statement::Node("Standalone".into())]);
+    }
+
+    // ── Multiple statements ──────────────────────────────────────────────
+
+    #[test]
+    fn parse_multiple_statements() {
+        let input = "# setup\nA -> B\nB -[calls]-> C\n";
+        let stmts = parse(input).unwrap();
+        assert_eq!(stmts.len(), 3);
+        assert!(matches!(&stmts[0], Statement::Comment(_)));
+        assert!(matches!(&stmts[1], Statement::Connection { .. }));
+        assert!(matches!(&stmts[2], Statement::LabeledConnection { .. }));
+    }
+
+    // ── Empty / whitespace ───────────────────────────────────────────────
+
+    #[test]
+    fn parse_empty_input() {
+        let stmts = parse("").unwrap();
+        assert!(stmts.is_empty());
+    }
+
+    #[test]
+    fn parse_blank_lines_only() {
+        let stmts = parse("\n\n\n").unwrap();
+        assert!(stmts.is_empty());
+    }
+
+    // ── Error cases ──────────────────────────────────────────────────────
+
+    #[test]
+    fn parse_invalid_syntax_returns_error() {
+        let result = parse("??? totally broken {{{");
+        assert!(result.is_err());
+    }
+}

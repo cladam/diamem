@@ -245,3 +245,39 @@ impl eframe::App for DiamemApp {
         eframe::set_value(storage, eframe::APP_KEY, self);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_has_valid_dsl() {
+        let app = DiamemApp::default();
+        let result = dsl_to_mermaid(&app.dsl_source);
+        assert!(result.is_ok(), "Default DSL should parse: {result:?}");
+    }
+
+    #[test]
+    fn default_export_path_is_set() {
+        let app = DiamemApp::default();
+        assert!(!app.export_path.is_empty());
+    }
+
+    #[test]
+    fn default_starts_valid() {
+        let app = DiamemApp::default();
+        assert!(app.dsl_valid);
+    }
+
+    #[test]
+    fn default_theme_not_applied() {
+        let app = DiamemApp::default();
+        assert!(!app.theme_applied);
+    }
+
+    #[test]
+    fn default_status_message_empty() {
+        let app = DiamemApp::default();
+        assert!(app.status_message.is_empty());
+    }
+}

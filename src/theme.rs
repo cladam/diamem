@@ -78,3 +78,43 @@ pub fn apply(ctx: &egui::Context) {
 
     ctx.set_visuals(visuals);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn palette_dark_bg_matches_spec() {
+        assert_eq!(DARK_BG, egui::Color32::from_rgb(0x12, 0x12, 0x12));
+    }
+
+    #[test]
+    fn palette_muted_teal_matches_spec() {
+        assert_eq!(MUTED_TEAL, egui::Color32::from_rgb(0x5A, 0x9B, 0x80));
+    }
+
+    #[test]
+    fn palette_quiet_amber_matches_spec() {
+        assert_eq!(QUIET_AMBER, egui::Color32::from_rgb(0xC0, 0x8A, 0x3E));
+    }
+
+    #[test]
+    fn palette_muted_red_matches_spec() {
+        assert_eq!(MUTED_RED, egui::Color32::from_rgb(0xB3, 0x5F, 0x5F));
+    }
+
+    #[test]
+    fn surface_tones_are_ordered() {
+        // DARK_BG < PANEL_BG < SURFACE < SURFACE_HOVER (by lightness)
+        assert!(DARK_BG.r() < PANEL_BG.r());
+        assert!(PANEL_BG.r() < SURFACE.r());
+        assert!(SURFACE.r() < SURFACE_HOVER.r());
+    }
+
+    #[test]
+    fn text_tiers_are_ordered() {
+        // TEXT_MUTED < TEXT_SECONDARY < TEXT_PRIMARY
+        assert!(TEXT_MUTED.r() < TEXT_SECONDARY.r());
+        assert!(TEXT_SECONDARY.r() < TEXT_PRIMARY.r());
+    }
+}
