@@ -3,7 +3,8 @@
 //! These test the full public API end-to-end: DSL text in → Mermaid text out,
 //! exercising the pest parser and codegen together as a consumer would.
 
-use diamem::dsl::dsl_to_mermaid;
+use diamem::dsl::{compile_dsl, dsl_to_mermaid};
+use diamem::render;
 
 // ── Happy-path: every DSL feature ───────────────────────────────────────────
 
@@ -194,4 +195,48 @@ User > API : POST /login
     assert!(mermaid.contains("API -->|queries| Postgres"));
     assert!(mermaid.contains("API -->|caches| Redis"));
     assert!(mermaid.contains("User ->> API: POST /login"));
+}
+
+// ── Comment footer for Shotext OCR ──────────────────────────────────────────
+
+#[test]
+fn compile_dsl_extracts_comments() {
+    let input = "\
+# Architecture overview
+# Version 2.0
+A -> B
+# internal note
+";
+    let (_mermaid, comments) = compile_dsl(input).unwrap();
+    assert_eq!(
+        comments,
+        vec!["Architecture overview", "Version 2.0", "internal note"]
+    );
+}
+
+#[test]
+fn compile_dsl_empty_comments_are_excluded() {
+    let input = "#\nA -> B\n# real comment\n";
+    let (_, comments) = compile_dsl(input).unwrap();
+    assert_eq!(comments, vec!["real comment"]);
+}
+
+#[test]
+fn compile_dsl_no_comments_gives_empty_vec() {
+    let input = "A -> B\nC -> D\n";
+    let (_, comments) = compile_dsl(input).unwrap();
+    assert!(comments.is_empty());
+}
+
+#[test]
+fn inject_footer_makes_comments_visible_in_svg() {
+    let stub_svg = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100" width="200" height="100"><rect/></svg>"##;
+    let comments = vec!["Project: diamem".into(), "Author: Claes".into()];
+    let result = render::inject_svg_footer(stub_svg, &comments);
+
+    assert!(result.contains("Project: diamem"));
+    assert!(result.contains("Author: Claes"));
+    assert!(result.contains("<text"));
+    // viewBox height should have grown
+    assert!(!result.contains("viewBox=\"0 0 200 100\""));
 }

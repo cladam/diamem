@@ -1,4 +1,4 @@
-use crate::dsl::dsl_to_mermaid;
+use crate::dsl::compile_dsl;
 use crate::render;
 use crate::theme;
 use eframe::egui;
@@ -32,6 +32,9 @@ pub struct DiamemApp {
     /// Error message from the SVG renderer (if any).
     #[serde(skip)]
     svg_error: String,
+    /// Extracted DSL comment lines for the footer / Shotext indexing.
+    #[serde(skip)]
+    comments: Vec<String>,
     /// Cached egui texture for the rendered SVG.
     #[serde(skip)]
     diagram_texture: Option<egui::TextureHandle>,
@@ -63,6 +66,7 @@ impl Default for DiamemApp {
             dsl_valid: true,
             svg_valid: false,
             svg_error: String::new(),
+            comments: Vec::new(),
             diagram_texture: None,
             theme_applied: false,
         }
@@ -86,14 +90,16 @@ impl DiamemApp {
         }
         self.prev_dsl_source = self.dsl_source.clone();
 
-        // Step 1: DSL → Mermaid
-        match dsl_to_mermaid(&self.dsl_source) {
-            Ok(mermaid) => {
+        // Step 1: DSL → Mermaid + comments
+        match compile_dsl(&self.dsl_source) {
+            Ok((mermaid, comments)) => {
                 self.mermaid_output = mermaid;
+                self.comments = comments;
                 self.dsl_valid = true;
             }
             Err(err) => {
                 self.mermaid_output = err;
+                self.comments.clear();
                 self.dsl_valid = false;
                 self.svg_valid = false;
                 self.svg_error = "DSL parse error".into();
@@ -102,10 +108,10 @@ impl DiamemApp {
             }
         }
 
-        // Step 2: Mermaid → SVG
+        // Step 2: Mermaid → SVG (with comment footer for Shotext)
         match render::mermaid_to_svg(&self.mermaid_output) {
             Ok(svg) => {
-                self.svg_output = svg;
+                self.svg_output = render::inject_svg_footer(&svg, &self.comments);
                 self.svg_valid = true;
                 self.svg_error.clear();
                 // Step 3: SVG → egui texture
@@ -176,7 +182,7 @@ impl DiamemApp {
         );
         let path = std::path::Path::new(&dir).join(&filename);
 
-        match render::mermaid_to_png(&self.mermaid_output, &path) {
+        match render::mermaid_to_png_with_comments(&self.mermaid_output, &self.comments, &path) {
             Ok(()) => {
                 self.status_message = format!("✓ Exported to {}", path.display());
             }
@@ -405,7 +411,7 @@ mod tests {
     #[test]
     fn default_has_valid_dsl() {
         let app = DiamemApp::default();
-        let result = dsl_to_mermaid(&app.dsl_source);
+        let result = compile_dsl(&app.dsl_source);
         assert!(result.is_ok(), "Default DSL should parse: {result:?}");
     }
 

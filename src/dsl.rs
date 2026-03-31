@@ -3,10 +3,26 @@ use crate::parser::{self, Statement};
 /// Parse DSL source and convert it to Mermaid syntax.
 pub fn dsl_to_mermaid(dsl: &str) -> Result<String, String> {
     let statements = parser::parse(dsl)?;
+    Ok(build_mermaid(&statements))
+}
 
+/// Parse DSL source and return both Mermaid syntax and extracted comment text.
+///
+/// The comment list contains only non-empty `# …` lines, in document order.
+/// These can be passed to [`crate::render::inject_svg_footer`] so Shotext
+/// can OCR them out of the exported PNG.
+pub fn compile_dsl(dsl: &str) -> Result<(String, Vec<String>), String> {
+    let statements = parser::parse(dsl)?;
+    let mermaid = build_mermaid(&statements);
+    let comments = extract_comments(&statements);
+    Ok((mermaid, comments))
+}
+
+/// Build Mermaid syntax from parsed statements.
+fn build_mermaid(statements: &[Statement]) -> String {
     let mut output = String::from("graph TD\n");
 
-    for stmt in &statements {
+    for stmt in statements {
         match stmt {
             Statement::Comment(_) => {}
             Statement::Connection { from, to } => {
@@ -31,7 +47,18 @@ pub fn dsl_to_mermaid(dsl: &str) -> Result<String, String> {
         }
     }
 
-    Ok(output)
+    output
+}
+
+/// Collect non-empty comment text from parsed statements, in document order.
+fn extract_comments(statements: &[Statement]) -> Vec<String> {
+    statements
+        .iter()
+        .filter_map(|s| match s {
+            Statement::Comment(text) if !text.is_empty() => Some(text.clone()),
+            _ => None,
+        })
+        .collect()
 }
 
 #[cfg(test)]
