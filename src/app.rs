@@ -17,9 +17,6 @@ pub struct DiamemApp {
     /// Cached Mermaid output (recomputed when DSL changes).
     #[serde(skip)]
     mermaid_output: String,
-    /// Cached SVG string rendered from Mermaid.
-    #[serde(skip)]
-    svg_output: String,
     /// Previous DSL source used for change detection.
     #[serde(skip)]
     prev_dsl_source: String,
@@ -61,7 +58,6 @@ impl Default for DiamemApp {
             export_path: "~/Desktop".to_string(),
             status_message: String::new(),
             mermaid_output: String::new(),
-            svg_output: String::new(),
             prev_dsl_source: String::new(),
             dsl_valid: true,
             svg_valid: false,
@@ -108,14 +104,23 @@ impl DiamemApp {
             }
         }
 
-        // Step 2: Mermaid → SVG (with comment footer for Shotext)
-        match render::mermaid_to_svg(&self.mermaid_output) {
-            Ok(svg) => {
-                self.svg_output = render::inject_svg_footer(&svg, &self.comments);
+        // Step 2: Mermaid + comments → composited pixels
+        //
+        // The footer is rendered as its own standalone SVG and composited
+        // below the diagram so fonts resolve independently and clip-paths
+        // in the Mermaid SVG cannot hide the text.
+        match render::render_diagram(&self.mermaid_output, &self.comments) {
+            Ok(rendered) => {
                 self.svg_valid = true;
                 self.svg_error.clear();
-                // Step 3: SVG → egui texture
-                self.rasterize_svg(ctx);
+
+                let image = egui::ColorImage::from_rgba_unmultiplied(
+                    [rendered.width as usize, rendered.height as usize],
+                    &rendered.rgba_data,
+                );
+                self.diagram_texture = Some(
+                    ctx.load_texture("diagram_preview", image, egui::TextureOptions::LINEAR),
+                );
             }
             Err(err) => {
                 self.svg_valid = false;
@@ -123,44 +128,6 @@ impl DiamemApp {
                 self.diagram_texture = None;
             }
         }
-    }
-
-    /// Rasterize the current SVG into an egui texture for display.
-    fn rasterize_svg(&mut self, ctx: &egui::Context) {
-        let mut opt = usvg::Options::default();
-        opt.fontdb_mut().load_system_fonts();
-
-        let tree = match usvg::Tree::from_str(&self.svg_output, &opt) {
-            Ok(t) => t,
-            Err(e) => {
-                self.svg_error = format!("SVG parse: {e}");
-                self.diagram_texture = None;
-                return;
-            }
-        };
-
-        let size = tree.size().to_int_size();
-        let Some(mut pixmap) = resvg::tiny_skia::Pixmap::new(size.width(), size.height()) else {
-            self.svg_error = "Failed to allocate pixmap".into();
-            self.diagram_texture = None;
-            return;
-        };
-
-        // Fill with dark background
-        pixmap.fill(resvg::tiny_skia::Color::from_rgba8(0x12, 0x12, 0x12, 0xFF));
-        resvg::render(
-            &tree,
-            resvg::tiny_skia::Transform::default(),
-            &mut pixmap.as_mut(),
-        );
-
-        let image = egui::ColorImage::from_rgba_unmultiplied(
-            [size.width() as usize, size.height() as usize],
-            pixmap.data(),
-        );
-
-        self.diagram_texture =
-            Some(ctx.load_texture("diagram_preview", image, egui::TextureOptions::LINEAR));
     }
 
     /// Export the current diagram as a PNG file to the configured path.
@@ -182,7 +149,7 @@ impl DiamemApp {
         );
         let path = std::path::Path::new(&dir).join(&filename);
 
-        match render::mermaid_to_png_with_comments(&self.mermaid_output, &self.comments, &path) {
+        match render::export_diagram_png(&self.mermaid_output, &self.comments, &path) {
             Ok(()) => {
                 self.status_message = format!("✓ Exported to {}", path.display());
             }

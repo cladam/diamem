@@ -2,12 +2,28 @@
 //!
 //! Wraps `mermaid-rs-renderer` with a dark theme matching the ilseon palette,
 //! and provides helpers for both in-app SVG preview and PNG file export.
-//! Also supports injecting DSL comments as a visible footer in the SVG/PNG
-//! so that OCR tools like Shotext can index them.
+//!
+//! DSL comments are rendered as a **separate** high-contrast SVG and
+//! composited below the diagram so OCR tools like Shotext can reliably
+//! index them — even when the Mermaid SVG clips or restricts text rendering.
 
 use std::path::Path;
 
-use mermaid_rs_renderer::{RenderConfig, RenderOptions, Theme, render_with_options};
+use mermaid_rs_renderer::{RenderOptions, Theme, render_with_options};
+
+// ── Public data types ───────────────────────────────────────────────────────
+
+/// Rasterised diagram image (premultiplied RGBA, row-major).
+pub struct RenderedDiagram {
+    /// Width in pixels.
+    pub width: u32,
+    /// Height in pixels.
+    pub height: u32,
+    /// Pixel data — 4 bytes per pixel, premultiplied RGBA.
+    pub rgba_data: Vec<u8>,
+}
+
+// ── Primary public API ──────────────────────────────────────────────────────
 
 /// Render Mermaid syntax to an SVG string using our dark theme.
 pub fn mermaid_to_svg(mermaid: &str) -> Result<String, String> {
@@ -15,40 +31,38 @@ pub fn mermaid_to_svg(mermaid: &str) -> Result<String, String> {
     render_with_options(mermaid, options).map_err(|e| format!("{e}"))
 }
 
-/// Render Mermaid syntax to a PNG file on disk.
-pub fn mermaid_to_png(mermaid: &str, output_path: &Path) -> Result<(), String> {
-    let options = dark_render_options();
-    let svg = render_with_options(mermaid, options).map_err(|e| format!("SVG render: {e}"))?;
-    let theme = dark_theme();
-    let cfg = RenderConfig::default();
-    mermaid_rs_renderer::write_output_png(&svg, output_path, &cfg, &theme)
-        .map_err(|e| format!("PNG export: {e}"))
+/// Render a Mermaid diagram (with optional comment footer) and return pixel data.
+///
+/// The footer is rendered as its own standalone SVG and composited below the
+/// diagram, which avoids clip-path / font-resolution issues that can occur
+/// when injecting `<text>` elements into the Mermaid SVG.
+pub fn render_diagram(mermaid: &str, comments: &[String]) -> Result<RenderedDiagram, String> {
+    let pm = render_composite(mermaid, comments)?;
+    Ok(RenderedDiagram {
+        width: pm.width(),
+        height: pm.height(),
+        rgba_data: pm.data().to_vec(),
+    })
 }
 
-/// Render Mermaid syntax to a PNG file, including a visible comment footer.
-///
-/// The footer embeds DSL comments as OCR-readable text below the diagram so
-/// that screenshot-indexing tools (e.g. Shotext) can search for them later.
-pub fn mermaid_to_png_with_comments(
+/// Render a Mermaid diagram with comment footer and save as PNG.
+pub fn export_diagram_png(
     mermaid: &str,
     comments: &[String],
     output_path: &Path,
 ) -> Result<(), String> {
-    let options = dark_render_options();
-    let svg = render_with_options(mermaid, options).map_err(|e| format!("SVG render: {e}"))?;
-    let svg = inject_svg_footer(&svg, comments);
-    svg_to_png(&svg, output_path)
+    let pm = render_composite(mermaid, comments)?;
+    pm.save_png(output_path)
+        .map_err(|e| format!("PNG save: {e}"))
 }
 
-// ── SVG comment footer ──────────────────────────────────────────────────────
+// ── SVG footer injection (kept for backward compat / tests) ─────────────────
 
 /// Inject a visible text footer into an SVG string.
 ///
-/// Each comment becomes a monospace line below the diagram, separated by a
-/// thin rule.  The footer uses the ilseon dark-background palette so it
-/// blends with the rest of the rendered diagram.
-///
-/// If `comments` is empty the SVG is returned unchanged.
+/// **Note:** For PNG export prefer [`render_diagram`] / [`export_diagram_png`]
+/// which composite the footer as a separate SVG — more reliable across
+/// different SVG renderers and font configurations.
 pub fn inject_svg_footer(svg: &str, comments: &[String]) -> String {
     if comments.is_empty() {
         return svg.to_string();
@@ -60,20 +74,15 @@ pub fn inject_svg_footer(svg: &str, comments: &[String]) -> String {
     let pad_left: f64 = 20.0;
     let pad_right: f64 = 20.0;
     let pad_bottom: f64 = 16.0;
-    let gap: f64 = 12.0; // space between diagram and footer
+    let gap: f64 = 12.0;
     let footer_h = gap + pad_top + (comments.len() as f64 * line_height) + pad_bottom;
-
-    // Approximate character width for Helvetica/Arial at this font size.
-    // 0.62 × font_size is a conservative average (caps + lowercase mix).
     let char_w: f64 = font_size * 0.62;
 
-    // Parse the original viewBox – bail out unchanged if it's missing.
     let (vb_x, vb_y, vb_w, vb_h) = match parse_viewbox(svg) {
         Some(dims) => dims,
         None => return svg.to_string(),
     };
 
-    // The footer may be wider than the diagram — pick the bigger value.
     let longest_text_w = comments
         .iter()
         .map(|c| pad_left + (c.len() as f64 * char_w) + pad_right)
@@ -81,26 +90,19 @@ pub fn inject_svg_footer(svg: &str, comments: &[String]) -> String {
     let new_vb_w = vb_w.max(longest_text_w);
     let new_vb_h = vb_h + footer_h;
 
-    // Build footer SVG elements
     let mut footer = String::new();
-
     let footer_y = vb_y + vb_h + gap;
     let footer_content_h = footer_h - gap;
 
-    // White background rect — high contrast for OCR, spans full width
     footer.push_str(&format!(
         "<rect x=\"{vb_x}\" y=\"{footer_y}\" width=\"{new_vb_w}\" \
          height=\"{footer_content_h}\" fill=\"#FFFFFF\" rx=\"4\"/>\n",
     ));
-
-    // Thin top border to separate from diagram
     footer.push_str(&format!(
         "<line x1=\"{vb_x}\" y1=\"{footer_y}\" x2=\"{}\" y2=\"{footer_y}\" \
          stroke=\"#CCCCCC\" stroke-width=\"1\"/>\n",
         vb_x + new_vb_w,
     ));
-
-    // One <text> per comment line — dark text on white for max OCR contrast
     for (i, line) in comments.iter().enumerate() {
         let y = footer_y + pad_top + (i as f64 * line_height) + font_size;
         let x = vb_x + pad_left;
@@ -112,44 +114,136 @@ pub fn inject_svg_footer(svg: &str, comments: &[String]) -> String {
         ));
     }
 
-    // Patch dimensions & splice in the footer
     let mut result = replace_viewbox(svg, vb_x, vb_y, new_vb_w, new_vb_h);
     result = replace_svg_attr(&result, "width", new_vb_w);
     result = replace_svg_attr(&result, "height", new_vb_h);
     result.replace("</svg>", &format!("{footer}</svg>"))
 }
 
-// ── Direct SVG → PNG rasterisation ──────────────────────────────────────────
+// ── Internal: composite rendering ───────────────────────────────────────────
 
-/// Rasterize an SVG string and write a PNG file.
-///
-/// Uses `usvg` + `resvg` with the same dark background fill as the in-app
-/// preview so the exported PNG looks identical.
-pub fn svg_to_png(svg: &str, output_path: &Path) -> Result<(), String> {
+/// Render diagram + footer as separate SVGs, then composite into one pixmap.
+fn render_composite(
+    mermaid: &str,
+    comments: &[String],
+) -> Result<resvg::tiny_skia::Pixmap, String> {
+    let options = dark_render_options();
+    let svg = render_with_options(mermaid, options).map_err(|e| format!("SVG render: {e}"))?;
+
     let mut opt = usvg::Options::default();
     opt.fontdb_mut().load_system_fonts();
 
-    let tree = usvg::Tree::from_str(svg, &opt).map_err(|e| format!("SVG parse: {e}"))?;
+    // Rasterise the diagram
+    let tree = usvg::Tree::from_str(&svg, &opt).map_err(|e| format!("SVG parse: {e}"))?;
     let size = tree.size().to_int_size();
+    let mut diagram_pm = resvg::tiny_skia::Pixmap::new(size.width(), size.height())
+        .ok_or_else(|| "Failed to allocate diagram pixmap".to_string())?;
+    diagram_pm.fill(resvg::tiny_skia::Color::from_rgba8(0x12, 0x12, 0x12, 0xFF));
+    resvg::render(
+        &tree,
+        resvg::tiny_skia::Transform::default(),
+        &mut diagram_pm.as_mut(),
+    );
 
+    if comments.is_empty() {
+        return Ok(diagram_pm);
+    }
+
+    // Render the footer as a completely separate SVG
+    let footer_pm = render_footer_pixmap(comments, size.width(), &opt)?;
+
+    // Stack vertically: diagram → 8px gap → footer
+    composite_vertically(&diagram_pm, &footer_pm, 8)
+}
+
+/// Render comment text as a standalone high-contrast SVG and rasterise it.
+///
+/// The SVG is a self-contained document with its own white background and
+/// dark text — no dependency on the Mermaid SVG's styles or clip regions.
+fn render_footer_pixmap(
+    comments: &[String],
+    min_width: u32,
+    opt: &usvg::Options,
+) -> Result<resvg::tiny_skia::Pixmap, String> {
+    let font_size = 24.0_f64;
+    let line_height = 36.0_f64;
+    let pad_x = 20.0_f64;
+    let pad_y = 20.0_f64;
+    let char_w = font_size * 0.62;
+
+    let text_width: f64 = comments
+        .iter()
+        .map(|c| pad_x + (c.len() as f64 * char_w) + pad_x)
+        .fold(0.0_f64, f64::max);
+    let w = (min_width as f64).max(text_width).max(200.0);
+    let h = pad_y + (comments.len() as f64 * line_height) + pad_y;
+
+    // Broad font-family list so every OS finds something.
+    let families = "Helvetica Neue, Helvetica, Arial, Segoe UI, \
+                    DejaVu Sans, Liberation Sans, Noto Sans, sans-serif";
+
+    let mut svg = format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" \
+         width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">\
+         <rect width=\"{w}\" height=\"{h}\" fill=\"white\"/>\n"
+    );
+    for (i, line) in comments.iter().enumerate() {
+        let y = pad_y + (i as f64 * line_height) + font_size;
+        let escaped = xml_escape(line);
+        svg.push_str(&format!(
+            "<text x=\"{pad_x}\" y=\"{y}\" fill=\"#1A1A1A\" \
+             font-family=\"{families}\" font-size=\"{font_size}\">\
+             {escaped}</text>\n",
+        ));
+    }
+    svg.push_str("</svg>");
+
+    let tree =
+        usvg::Tree::from_str(&svg, opt).map_err(|e| format!("Footer SVG parse: {e}"))?;
+    let size = tree.size().to_int_size();
     let mut pixmap = resvg::tiny_skia::Pixmap::new(size.width(), size.height())
-        .ok_or_else(|| "Failed to allocate pixmap".to_string())?;
-
-    pixmap.fill(resvg::tiny_skia::Color::from_rgba8(0x12, 0x12, 0x12, 0xFF));
+        .ok_or_else(|| "Failed to allocate footer pixmap".to_string())?;
+    pixmap.fill(resvg::tiny_skia::Color::from_rgba8(0xFF, 0xFF, 0xFF, 0xFF));
     resvg::render(
         &tree,
         resvg::tiny_skia::Transform::default(),
         &mut pixmap.as_mut(),
     );
 
-    pixmap
-        .save_png(output_path)
-        .map_err(|e| format!("PNG save: {e}"))
+    Ok(pixmap)
+}
+
+/// Stack two pixmaps vertically with a gap filled by the dark background.
+fn composite_vertically(
+    top: &resvg::tiny_skia::Pixmap,
+    bottom: &resvg::tiny_skia::Pixmap,
+    gap: u32,
+) -> Result<resvg::tiny_skia::Pixmap, String> {
+    let w = top.width().max(bottom.width());
+    let h = top.height() + gap + bottom.height();
+
+    let mut result = resvg::tiny_skia::Pixmap::new(w, h)
+        .ok_or_else(|| "Failed to allocate composite pixmap".to_string())?;
+    result.fill(resvg::tiny_skia::Color::from_rgba8(0x12, 0x12, 0x12, 0xFF));
+
+    let paint = resvg::tiny_skia::PixmapPaint::default();
+    let xform = resvg::tiny_skia::Transform::identity();
+
+    result.draw_pixmap(0, 0, top.as_ref(), &paint, xform, None);
+    result.draw_pixmap(
+        0,
+        (top.height() + gap) as i32,
+        bottom.as_ref(),
+        &paint,
+        xform,
+        None,
+    );
+
+    Ok(result)
 }
 
 // ── Internal helpers ────────────────────────────────────────────────────────
 
-/// Build render options with a dark theme inspired by the ilseon palette.
 fn dark_render_options() -> RenderOptions {
     RenderOptions {
         theme: dark_theme(),
@@ -157,7 +251,6 @@ fn dark_render_options() -> RenderOptions {
     }
 }
 
-/// A dark theme derived from the ilseon / myeon colour palette.
 fn dark_theme() -> Theme {
     let mut theme = Theme::modern();
     theme.background = "#121212".into();
@@ -174,7 +267,6 @@ fn dark_theme() -> Theme {
     theme
 }
 
-/// Parse `viewBox="x y w h"` from the root `<svg>` element.
 fn parse_viewbox(svg: &str) -> Option<(f64, f64, f64, f64)> {
     let needle = "viewBox=\"";
     let start = svg.find(needle)? + needle.len();
@@ -190,7 +282,6 @@ fn parse_viewbox(svg: &str) -> Option<(f64, f64, f64, f64)> {
     }
 }
 
-/// Rewrite the `viewBox` attribute value in an SVG string.
 fn replace_viewbox(svg: &str, x: f64, y: f64, w: f64, h: f64) -> String {
     let needle = "viewBox=\"";
     if let Some(attr_start) = svg.find(needle) {
@@ -207,10 +298,8 @@ fn replace_viewbox(svg: &str, x: f64, y: f64, w: f64, h: f64) -> String {
     svg.to_string()
 }
 
-/// Replace a numeric attribute on the root `<svg>` tag (e.g. `height`).
 fn replace_svg_attr(svg: &str, attr: &str, new_value: f64) -> String {
     let needle = format!("{attr}=\"");
-    // Only look inside the opening <svg …> tag.
     let tag_end = match svg.find('>') {
         Some(pos) => pos,
         None => return svg.to_string(),
@@ -230,7 +319,6 @@ fn replace_svg_attr(svg: &str, attr: &str, new_value: f64) -> String {
     svg.to_string()
 }
 
-/// Minimal XML escaping for text content.
 fn xml_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -265,7 +353,6 @@ mod tests {
     fn footer_increases_viewbox_height() {
         let comments = vec!["line one".into(), "line two".into()];
         let result = inject_svg_footer(STUB_SVG, &comments);
-        // The original height was 100; it should now be larger.
         let (_, _, _, h) = parse_viewbox(&result).unwrap();
         assert!(h > 100.0);
     }
@@ -288,8 +375,6 @@ mod tests {
     fn footer_adds_background_rect() {
         let comments = vec!["note".into()];
         let result = inject_svg_footer(STUB_SVG, &comments);
-        // There should be a background rect for the footer area (in addition
-        // to the diagram's own rect).
         assert!(result.matches("<rect").count() >= 2);
     }
 
@@ -297,32 +382,23 @@ mod tests {
     fn footer_uses_high_contrast_for_ocr() {
         let comments = vec!["searchable context".into()];
         let result = inject_svg_footer(STUB_SVG, &comments);
-        // White background for max OCR contrast
         assert!(result.contains("fill=\"#FFFFFF\""));
-        // Dark text on the white background
         assert!(result.contains("fill=\"#1A1A1A\""));
-        // Sans-serif font for clean glyph shapes
         assert!(result.contains("sans-serif"));
-        // Reasonable font size (>= 16px)
         assert!(result.contains("font-size=\"16\""));
     }
 
     #[test]
     fn footer_widens_viewbox_for_long_text() {
-        // STUB_SVG is 200px wide; a ~60-char comment should force it wider.
         let long = "This is a long comment that should definitely exceed 200px of width easily";
         let comments = vec![long.into()];
         let result = inject_svg_footer(STUB_SVG, &comments);
         let (_, _, w, _) = parse_viewbox(&result).unwrap();
-        assert!(
-            w > 200.0,
-            "Expected viewBox width > 200 for long text, got {w}"
-        );
+        assert!(w > 200.0, "Expected viewBox width > 200 for long text, got {w}");
     }
 
     #[test]
     fn footer_keeps_width_when_diagram_is_wider() {
-        // Short comment should not shrink the original 200px width.
         let comments = vec!["hi".into()];
         let result = inject_svg_footer(STUB_SVG, &comments);
         let (_, _, w, _) = parse_viewbox(&result).unwrap();
@@ -350,3 +426,4 @@ mod tests {
         assert_eq!(xml_escape("<>&\"'"), "&lt;&gt;&amp;&quot;&apos;");
     }
 }
+
