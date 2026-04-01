@@ -19,12 +19,28 @@ pub fn compile_dsl(dsl: &str) -> Result<(String, Vec<String>), String> {
 }
 
 /// Build Mermaid syntax from parsed statements.
+///
+/// If any statement is a `Mindmap`, the output uses Mermaid's `mindmap`
+/// diagram type.  Otherwise it falls back to `graph TD`.
 fn build_mermaid(statements: &[Statement]) -> String {
+    let has_mindmap = statements
+        .iter()
+        .any(|s| matches!(s, Statement::Mindmap { .. }));
+
+    if has_mindmap {
+        build_mindmap(statements)
+    } else {
+        build_graph(statements)
+    }
+}
+
+/// Build a `graph TD` Mermaid diagram.
+fn build_graph(statements: &[Statement]) -> String {
     let mut output = String::from("graph TD\n");
 
     for stmt in statements {
         match stmt {
-            Statement::Comment(_) => {}
+            Statement::Comment(_) | Statement::Mindmap { .. } => {}
             Statement::Connection { from, to } => {
                 output.push_str(&format!("    {from} --> {to}\n"));
             }
@@ -45,6 +61,28 @@ fn build_mermaid(statements: &[Statement]) -> String {
                 output.push_str(&format!("    {ident}\n"));
             }
         }
+    }
+
+    output
+}
+
+/// Build a `mindmap` Mermaid diagram.
+///
+/// Dash-count in each entry maps to indentation depth:
+/// root → 2 spaces, depth 1 (`-`) → 4 spaces, depth 2 (`--`) → 6, etc.
+fn build_mindmap(statements: &[Statement]) -> String {
+    let mut output = String::from("mindmap\n");
+
+    for stmt in statements {
+        if let Statement::Mindmap { root, entries } = stmt {
+            // Root at indent level 1 (2 spaces)
+            output.push_str(&format!("  {root}\n"));
+            for entry in entries {
+                let indent = " ".repeat((entry.depth + 1) * 2);
+                output.push_str(&format!("{indent}{}\n", entry.label));
+            }
+        }
+        // Comments and graph statements are silently skipped in mindmap mode
     }
 
     output
@@ -173,5 +211,53 @@ API -[caches]-> Redis
         assert!(result.contains("Parser --> BasicUI"));
         assert!(result.contains("API -->|queries| DB"));
         assert!(result.contains("API -->|caches| Redis"));
+    }
+
+    // ── Mindmap ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn mindmap_header() {
+        let input = "mindmap: Root\n- Child\n";
+        let result = dsl_to_mermaid(input).unwrap();
+        assert!(result.starts_with("mindmap\n"));
+    }
+
+    #[test]
+    fn mindmap_root_and_branches() {
+        let input = "mindmap: Central Topic\n- Branch1\n- Branch2\n";
+        let result = dsl_to_mermaid(input).unwrap();
+        assert!(result.contains("  Central Topic\n"));
+        assert!(result.contains("    Branch1\n"));
+        assert!(result.contains("    Branch2\n"));
+    }
+
+    #[test]
+    fn mindmap_nested_depth() {
+        let input = "\
+mindmap: Root
+- A
+-- A1
+--- Deep
+";
+        let result = dsl_to_mermaid(input).unwrap();
+        // Root at 2 spaces, depth 1 at 4, depth 2 at 6, depth 3 at 8
+        assert!(result.contains("  Root\n"));
+        assert!(result.contains("    A\n"));
+        assert!(result.contains("      A1\n"));
+        assert!(result.contains("        Deep\n"));
+    }
+
+    #[test]
+    fn mindmap_does_not_emit_graph_td() {
+        let input = "mindmap: X\n- Y\n";
+        let result = dsl_to_mermaid(input).unwrap();
+        assert!(!result.contains("graph TD"));
+    }
+
+    #[test]
+    fn graph_without_mindmap_emits_graph_td() {
+        let result = dsl_to_mermaid("A -> B\n").unwrap();
+        assert!(result.starts_with("graph TD\n"));
+        assert!(!result.starts_with("mindmap\n"));
     }
 }

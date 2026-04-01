@@ -5,6 +5,13 @@ use pest_derive::Parser;
 #[grammar = "parser/diamem.pest"]
 struct DiamemParser;
 
+/// A single entry in a mindmap block: depth (dash count) + label text.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MindmapEntry {
+    pub depth: usize,
+    pub label: String,
+}
+
 /// A parsed DSL statement.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
@@ -26,6 +33,10 @@ pub enum Statement {
     Grouping {
         name: String,
         nodes: Vec<String>,
+    },
+    Mindmap {
+        root: String,
+        entries: Vec<MindmapEntry>,
     },
     Node(String),
 }
@@ -49,6 +60,20 @@ pub fn parse(input: &str) -> Result<Vec<Statement>, String> {
                         .map(|p| p.as_str().trim().to_string())
                         .unwrap_or_default();
                     statements.push(Statement::Comment(text));
+                }
+                Rule::mindmap_block => {
+                    let mut inner = inner.into_inner();
+                    let root = inner.next().unwrap().as_str().trim().to_string();
+                    let entries: Vec<MindmapEntry> = inner
+                        .filter(|p| p.as_rule() == Rule::mindmap_entry)
+                        .map(|entry| {
+                            let mut parts = entry.into_inner();
+                            let depth = parts.next().unwrap().as_str().len();
+                            let label = parts.next().unwrap().as_str().trim().to_string();
+                            MindmapEntry { depth, label }
+                        })
+                        .collect();
+                    statements.push(Statement::Mindmap { root, entries });
                 }
                 Rule::connection => {
                     let idents: Vec<String> = inner
@@ -376,6 +401,70 @@ mod tests {
         assert!(matches!(&stmts[0], Statement::Comment(_)));
         assert!(matches!(&stmts[1], Statement::Connection { .. }));
         assert!(matches!(&stmts[2], Statement::LabeledConnection { .. }));
+    }
+
+    // ── Mindmap ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn parse_mindmap_basic() {
+        let input = "mindmap: Central\n- Branch1\n- Branch2\n";
+        let stmts = parse(input).unwrap();
+        assert_eq!(
+            stmts,
+            vec![Statement::Mindmap {
+                root: "Central".into(),
+                entries: vec![
+                    MindmapEntry { depth: 1, label: "Branch1".into() },
+                    MindmapEntry { depth: 1, label: "Branch2".into() },
+                ],
+            }]
+        );
+    }
+
+    #[test]
+    fn parse_mindmap_nested() {
+        let input = "mindmap: Root\n- A\n-- A1\n-- A2\n- B\n--- Deep\n";
+        let stmts = parse(input).unwrap();
+        if let Statement::Mindmap { root, entries } = &stmts[0] {
+            assert_eq!(root, "Root");
+            assert_eq!(entries.len(), 5);
+            assert_eq!(entries[0], MindmapEntry { depth: 1, label: "A".into() });
+            assert_eq!(entries[1], MindmapEntry { depth: 2, label: "A1".into() });
+            assert_eq!(entries[2], MindmapEntry { depth: 2, label: "A2".into() });
+            assert_eq!(entries[3], MindmapEntry { depth: 1, label: "B".into() });
+            assert_eq!(entries[4], MindmapEntry { depth: 3, label: "Deep".into() });
+        } else {
+            panic!("Expected Mindmap statement");
+        }
+    }
+
+    #[test]
+    fn parse_mindmap_root_only() {
+        let stmts = parse("mindmap: JustRoot\n").unwrap();
+        assert_eq!(
+            stmts,
+            vec![Statement::Mindmap {
+                root: "JustRoot".into(),
+                entries: vec![],
+            }]
+        );
+    }
+
+    #[test]
+    fn parse_mindmap_root_with_spaces() {
+        let stmts = parse("mindmap: My Big Idea\n- First\n").unwrap();
+        if let Statement::Mindmap { root, .. } = &stmts[0] {
+            assert_eq!(root, "My Big Idea");
+        } else {
+            panic!("Expected Mindmap");
+        }
+    }
+
+    #[test]
+    fn parse_mindmap_word_is_valid_node() {
+        // "mindmap" without ":" is a standalone node, not a mindmap block
+        let stmts = parse("mindmap\n").unwrap();
+        assert_eq!(stmts, vec![Statement::Node("mindmap".into())]);
     }
 
     // ── Empty / whitespace ───────────────────────────────────────────────

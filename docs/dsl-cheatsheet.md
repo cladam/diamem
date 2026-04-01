@@ -13,6 +13,9 @@
 | Grouping (old)  | `[Name] { A, B }`   | `[Backend] { API, Worker }`   |
 | Grouping (new)  | `@ Name: A, B`      | `@ Backend: API, Worker`      |
 | Node            | `Name`              | `Standalone`                  |
+| Mindmap root    | `mindmap: Root`     | `mindmap: My Project`         |
+| Mindmap branch  | `- Name`            | `- Frontend`                  |
+| Mindmap leaf    | `-- Name`           | `-- React`                    |
 
 ---
 
@@ -85,4 +88,44 @@ OrderSvc > APIGateway : Order complete
 APIGateway > User : 200 OK
 ```
 
-> **Tip:** You can mix all syntax types freely in one diagram. Both `[Group] { ... }` and `@ Group: ...` define clusters. Both `-[label]->` and `-(label)>` add labeled edges. Use `->` chains to lay out linear flows in a single line, and `> :` for message sequences.
+### Example 6 — Mindmap: Project Planning
+```
+# A mindmap: block switches to Mermaid's mindmap renderer.
+# Depth is expressed by dash count: - = level 1, -- = level 2, etc.
+
+mindmap: diamem
+- DSL
+-- Parser
+-- Grammar
+-- Syntax
+- Rendering
+-- Mermaid
+-- SVG
+-- PNG Export
+- UI
+-- Editor
+-- Preview
+-- Themes
+- Integration
+-- Shotext
+-- OCR Footer
+```
+
+### Example 7 — Mindmap: ADHD Daily Breakdown
+```
+mindmap: My Day
+- Morning
+-- Wake up
+-- Coffee
+-- Review tasks
+- Deep Work
+-- Code
+-- Design
+-- Write docs
+- Wind Down
+-- Walk
+-- Read
+-- Journal
+```
+
+> **Tip:** You can mix all syntax types freely in one diagram. Both `[Group] { ... }` and `@ Group: ...` define clusters. Both `-[label]->` and `-(label)>` add labeled edges. Use `->` chains to lay out linear flows in a single line, and `> :` for message sequences. Use `mindmap:` to create hierarchical mind maps — when present, the output switches from `graph TD` to Mermaid's `mindmap` renderer.

@@ -240,3 +240,39 @@ fn inject_footer_makes_comments_visible_in_svg() {
     // viewBox height should have grown
     assert!(!result.contains("viewBox=\"0 0 200 100\""));
 }
+
+// ── Mindmap end-to-end ──────────────────────────────────────────────────────
+
+#[test]
+fn end_to_end_mindmap() {
+    let input = "\
+mindmap: My Project
+- Frontend
+-- React
+-- CSS
+- Backend
+-- Rust
+-- PostgreSQL
+";
+    let mermaid = dsl_to_mermaid(input).unwrap();
+    assert!(mermaid.starts_with("mindmap\n"));
+    assert!(mermaid.contains("  My Project\n"));
+    assert!(mermaid.contains("    Frontend\n"));
+    assert!(mermaid.contains("      React\n"));
+    assert!(mermaid.contains("      CSS\n"));
+    assert!(mermaid.contains("    Backend\n"));
+    assert!(mermaid.contains("      Rust\n"));
+    assert!(mermaid.contains("      PostgreSQL\n"));
+}
+
+#[test]
+fn mindmap_comments_are_extracted() {
+    let input = "\
+# Project overview
+mindmap: Root
+- A
+";
+    let (mermaid, comments) = compile_dsl(input).unwrap();
+    assert!(mermaid.starts_with("mindmap\n"));
+    assert_eq!(comments, vec!["Project overview"]);
+}

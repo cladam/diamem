@@ -2,11 +2,20 @@
 
 diagram = { SOI ~ NEWLINE* ~ (statement ~ NEWLINE*)* ~ EOI }
 
-statement = _{ comment | header_grouping | grouping | sequence | labeled_connection | paren_labeled_connection | connection | node }
+statement = _{ comment | mindmap_block | header_grouping | grouping | sequence | labeled_connection | paren_labeled_connection | connection | node }
 
 // # This is a comment
 comment = { "#" ~ comment_text }
 comment_text = { (!NEWLINE ~ ANY)* }
+
+// mindmap: Central Topic
+// - Branch1
+// -- Leaf1
+mindmap_block = { "mindmap" ~ ":" ~ mindmap_root ~ (NEWLINE+ ~ mindmap_entry)* }
+mindmap_root  = @{ (!NEWLINE ~ ANY)+ }
+mindmap_entry = { mindmap_depth ~ mindmap_label }
+mindmap_depth = @{ "-"+ }
+mindmap_label = @{ (!NEWLINE ~ ANY)+ }
 
 // @ Group Name: A, B, C
 header_grouping = { "@" ~ header_group_name ~ ":" ~ node_list }
