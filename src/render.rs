@@ -9,7 +9,7 @@
 
 use std::path::Path;
 
-use mermaid_rs_renderer::{RenderOptions, Theme, render_with_options};
+use mermaid_rs_renderer::{LayoutConfig, RenderOptions, Theme, render_with_options};
 
 // ── Public data types ───────────────────────────────────────────────────────
 
@@ -127,7 +127,12 @@ fn render_composite(
     mermaid: &str,
     comments: &[String],
 ) -> Result<resvg::tiny_skia::Pixmap, String> {
-    let options = dark_render_options();
+    let is_mindmap = mermaid.starts_with("mindmap\n");
+    let options = if is_mindmap {
+        dark_mindmap_render_options()
+    } else {
+        dark_render_options()
+    };
     let svg = render_with_options(mermaid, options).map_err(|e| format!("SVG render: {e}"))?;
 
     let mut opt = usvg::Options::default();
@@ -198,8 +203,7 @@ fn render_footer_pixmap(
     }
     svg.push_str("</svg>");
 
-    let tree =
-        usvg::Tree::from_str(&svg, opt).map_err(|e| format!("Footer SVG parse: {e}"))?;
+    let tree = usvg::Tree::from_str(&svg, opt).map_err(|e| format!("Footer SVG parse: {e}"))?;
     let size = tree.size().to_int_size();
     let mut pixmap = resvg::tiny_skia::Pixmap::new(size.width(), size.height())
         .ok_or_else(|| "Failed to allocate footer pixmap".to_string())?;
@@ -247,6 +251,80 @@ fn composite_vertically(
 fn dark_render_options() -> RenderOptions {
     RenderOptions {
         theme: dark_theme(),
+        ..RenderOptions::default()
+    }
+}
+
+/// Render options for mindmap diagrams.
+///
+/// Uses the same dark theme but overrides `MindmapConfig.section_colors`
+/// with ilseon palette tones so each branch depth gets a distinct colour.
+fn dark_mindmap_render_options() -> RenderOptions {
+    let mut layout = LayoutConfig::default();
+
+    // Ilseon palette — cycled for branches at each depth:
+    //   Muted Teal  #5A9B80   (primary)
+    //   Quiet Amber #C08A3E   (secondary)
+    //   Muted Red   #B35F5F   (tertiary)
+    //   Light grey  #3A3A3A   (neutral – visible on #121212 bg)
+    let fills = vec![
+        "#5A9B80".into(), // teal
+        "#C08A3E".into(), // amber
+        "#B35F5F".into(), // red
+        "#3A3A3A".into(), // neutral grey (lighter)
+        "#5A9B80".into(),
+        "#C08A3E".into(),
+        "#B35F5F".into(),
+        "#3A3A3A".into(),
+        "#5A9B80".into(),
+        "#C08A3E".into(),
+        "#B35F5F".into(),
+        "#3A3A3A".into(),
+    ];
+
+    // Label text — light on the coloured fills, lighter on the grey
+    let labels = vec![
+        "#E0E0E0".into(),
+        "#E0E0E0".into(),
+        "#E0E0E0".into(),
+        "#B0B0B0".into(),
+        "#E0E0E0".into(),
+        "#E0E0E0".into(),
+        "#E0E0E0".into(),
+        "#B0B0B0".into(),
+        "#E0E0E0".into(),
+        "#E0E0E0".into(),
+        "#E0E0E0".into(),
+        "#B0B0B0".into(),
+    ];
+
+    // Lines between nodes — slightly lighter versions
+    let lines = vec![
+        "#7AC0A0".into(), // teal lighter
+        "#D4A85E".into(), // amber lighter
+        "#CC7F7F".into(), // red lighter
+        "#707070".into(), // grey lighter
+        "#7AC0A0".into(),
+        "#D4A85E".into(),
+        "#CC7F7F".into(),
+        "#707070".into(),
+        "#7AC0A0".into(),
+        "#D4A85E".into(),
+        "#CC7F7F".into(),
+        "#707070".into(),
+    ];
+
+    layout.mindmap.section_colors = fills;
+    layout.mindmap.section_label_colors = labels;
+    layout.mindmap.section_line_colors = lines;
+
+    // Centre root node — faded blue
+    layout.mindmap.root_fill = Some("#4A6FA5".into());
+    layout.mindmap.root_text = Some("#E0E0E0".into());
+
+    RenderOptions {
+        theme: dark_theme(),
+        layout,
         ..RenderOptions::default()
     }
 }
@@ -394,7 +472,10 @@ mod tests {
         let comments = vec![long.into()];
         let result = inject_svg_footer(STUB_SVG, &comments);
         let (_, _, w, _) = parse_viewbox(&result).unwrap();
-        assert!(w > 200.0, "Expected viewBox width > 200 for long text, got {w}");
+        assert!(
+            w > 200.0,
+            "Expected viewBox width > 200 for long text, got {w}"
+        );
     }
 
     #[test]
@@ -426,4 +507,3 @@ mod tests {
         assert_eq!(xml_escape("<>&\"'"), "&lt;&gt;&amp;&quot;&apos;");
     }
 }
-

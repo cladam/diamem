@@ -414,8 +414,14 @@ mod tests {
             vec![Statement::Mindmap {
                 root: "Central".into(),
                 entries: vec![
-                    MindmapEntry { depth: 1, label: "Branch1".into() },
-                    MindmapEntry { depth: 1, label: "Branch2".into() },
+                    MindmapEntry {
+                        depth: 1,
+                        label: "Branch1".into()
+                    },
+                    MindmapEntry {
+                        depth: 1,
+                        label: "Branch2".into()
+                    },
                 ],
             }]
         );
@@ -428,11 +434,41 @@ mod tests {
         if let Statement::Mindmap { root, entries } = &stmts[0] {
             assert_eq!(root, "Root");
             assert_eq!(entries.len(), 5);
-            assert_eq!(entries[0], MindmapEntry { depth: 1, label: "A".into() });
-            assert_eq!(entries[1], MindmapEntry { depth: 2, label: "A1".into() });
-            assert_eq!(entries[2], MindmapEntry { depth: 2, label: "A2".into() });
-            assert_eq!(entries[3], MindmapEntry { depth: 1, label: "B".into() });
-            assert_eq!(entries[4], MindmapEntry { depth: 3, label: "Deep".into() });
+            assert_eq!(
+                entries[0],
+                MindmapEntry {
+                    depth: 1,
+                    label: "A".into()
+                }
+            );
+            assert_eq!(
+                entries[1],
+                MindmapEntry {
+                    depth: 2,
+                    label: "A1".into()
+                }
+            );
+            assert_eq!(
+                entries[2],
+                MindmapEntry {
+                    depth: 2,
+                    label: "A2".into()
+                }
+            );
+            assert_eq!(
+                entries[3],
+                MindmapEntry {
+                    depth: 1,
+                    label: "B".into()
+                }
+            );
+            assert_eq!(
+                entries[4],
+                MindmapEntry {
+                    depth: 3,
+                    label: "Deep".into()
+                }
+            );
         } else {
             panic!("Expected Mindmap statement");
         }

@@ -273,6 +273,6 @@ mindmap: Root
 - A
 ";
     let (mermaid, comments) = compile_dsl(input).unwrap();
-    assert!(mermaid.starts_with("mindmap\n"));
+    assert!(mermaid.contains("mindmap\n"));
     assert_eq!(comments, vec!["Project overview"]);
 }

@@ -66,10 +66,13 @@ fn build_graph(statements: &[Statement]) -> String {
     output
 }
 
-/// Build a `mindmap` Mermaid diagram.
+/// Build a `mindmap` Mermaid diagram, themed with the ilseon palette.
 ///
 /// Dash-count in each entry maps to indentation depth:
 /// root → 2 spaces, depth 1 (`-`) → 4 spaces, depth 2 (`--`) → 6, etc.
+///
+/// Theme colours are applied via `RenderOptions.layout.mindmap.section_colors`
+/// in [`crate::render`], not via inline Mermaid directives.
 fn build_mindmap(statements: &[Statement]) -> String {
     let mut output = String::from("mindmap\n");
 
@@ -220,6 +223,7 @@ API -[caches]-> Redis
         let input = "mindmap: Root\n- Child\n";
         let result = dsl_to_mermaid(input).unwrap();
         assert!(result.starts_with("mindmap\n"));
+        assert!(!result.contains("graph TD"));
     }
 
     #[test]
@@ -258,6 +262,6 @@ mindmap: Root
     fn graph_without_mindmap_emits_graph_td() {
         let result = dsl_to_mermaid("A -> B\n").unwrap();
         assert!(result.starts_with("graph TD\n"));
-        assert!(!result.starts_with("mindmap\n"));
+        assert!(!result.contains("mindmap\n"));
     }
 }

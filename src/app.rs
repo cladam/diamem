@@ -118,9 +118,8 @@ impl DiamemApp {
                     [rendered.width as usize, rendered.height as usize],
                     &rendered.rgba_data,
                 );
-                self.diagram_texture = Some(
-                    ctx.load_texture("diagram_preview", image, egui::TextureOptions::LINEAR),
-                );
+                self.diagram_texture =
+                    Some(ctx.load_texture("diagram_preview", image, egui::TextureOptions::LINEAR));
             }
             Err(err) => {
                 self.svg_valid = false;
@@ -175,15 +174,17 @@ fn dirs_home() -> Option<String> {
 }
 
 impl eframe::App for DiamemApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        let ctx = ui.ctx().clone();
+
         // Apply ilseon theme once
         if !self.theme_applied {
-            theme::apply(ctx);
+            theme::apply(&ctx);
             self.theme_applied = true;
         }
 
         // Re-render diagram only when DSL changes
-        self.update_diagram(ctx);
+        self.update_diagram(&ctx);
 
         // Keyboard shortcuts
         if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::S)) {
@@ -191,7 +192,7 @@ impl eframe::App for DiamemApp {
         }
 
         // --- Top Menu Bar ---
-        egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
+        egui::TopBottomPanel::top("menu_bar").show(&ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.label(
                     egui::RichText::new("◆ diamem")
@@ -225,7 +226,7 @@ impl eframe::App for DiamemApp {
                     .fill(theme::SURFACE)
                     .inner_margin(egui::Margin::same(8)),
             )
-            .show(ctx, |ui| {
+            .show(&ctx, |ui| {
                 ui.horizontal(|ui| {
                     // Status indicator
                     let (status_text, status_color) = if self.dsl_valid && self.svg_valid {
@@ -280,7 +281,7 @@ impl eframe::App for DiamemApp {
                     .fill(theme::DARK_BG)
                     .inner_margin(egui::Margin::same(12)),
             )
-            .show(ctx, |ui| {
+            .show(&ctx, |ui| {
                 ui.label(
                     egui::RichText::new("✏ DSL Editor")
                         .heading()
@@ -309,7 +310,7 @@ impl eframe::App for DiamemApp {
                     .fill(theme::PANEL_BG)
                     .inner_margin(egui::Margin::same(12)),
             )
-            .show(ctx, |ui| {
+            .show(&ctx, |ui| {
                 ui.label(
                     egui::RichText::new("🔍 Diagram Preview")
                         .heading()
