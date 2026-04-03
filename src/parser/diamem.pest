@@ -2,7 +2,7 @@
 
 diagram = { SOI ~ NEWLINE* ~ (statement ~ NEWLINE*)* ~ EOI }
 
-statement = _{ comment | mindmap_block | header_grouping | grouping | sequence | labeled_connection | paren_labeled_connection | connection | node }
+statement = _{ comment | mindmap_block | timeline_block | header_grouping | grouping | sequence | labeled_connection | paren_labeled_connection | connection | node }
 
 // # This is a comment
 comment = { "#" ~ comment_text }
@@ -16,6 +16,16 @@ mindmap_root  = @{ (!NEWLINE ~ ANY)+ }
 mindmap_entry = { mindmap_depth ~ mindmap_label }
 mindmap_depth = @{ "-"+ }
 mindmap_label = @{ (!NEWLINE ~ ANY)+ }
+
+// timeline: Title
+// @ Early Days             (section header — uses @)
+// - 2004 : Facebook, Google   (period with events — uses -)
+// - 2005 : Youtube
+timeline_block   = { "timeline" ~ ":" ~ timeline_title ~ (NEWLINE+ ~ timeline_entry)* }
+timeline_title   = @{ (!NEWLINE ~ ANY)+ }
+timeline_entry   = { timeline_marker ~ timeline_content }
+timeline_marker  = @{ "@" | "-" }
+timeline_content = @{ (!NEWLINE ~ ANY)+ }
 
 // @ Group Name: A, B, C
 header_grouping = { "@" ~ header_group_name ~ ":" ~ node_list }

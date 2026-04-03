@@ -2,20 +2,24 @@
 
 ### Syntax at a glance
 
-| What            | Syntax              | Example                       |
-|-----------------|---------------------|-------------------------------|
-| Comment         | `# text`            | `# this is ignored`           |
-| Connection      | `A -> B`            | `Code -> Deploy`              |
-| Chain           | `A -> B -> C`       | `Code -> Build -> Deploy`     |
-| Labeled (old)   | `A -[label]-> B`    | `API -[REST]-> DB`            |
-| Labeled (new)   | `A -(label)> B`     | `API -(REST)> DB`             |
-| Sequence        | `A > B : Message`   | `User > App : Login`          |
-| Grouping (old)  | `[Name] { A, B }`   | `[Backend] { API, Worker }`   |
-| Grouping (new)  | `@ Name: A, B`      | `@ Backend: API, Worker`      |
-| Node            | `Name`              | `Standalone`                  |
-| Mindmap root    | `mindmap: Root`     | `mindmap: My Project`         |
-| Mindmap branch  | `- Name`            | `- Frontend`                  |
-| Mindmap leaf    | `-- Name`           | `-- React`                    |
+| What              | Syntax                    | Example                          |
+|-------------------|---------------------------|----------------------------------|
+| Comment           | `# text`                  | `# this is ignored`              |
+| Connection        | `A -> B`                  | `Code -> Deploy`                 |
+| Chain             | `A -> B -> C`             | `Code -> Build -> Deploy`        |
+| Labeled (old)     | `A -[label]-> B`          | `API -[REST]-> DB`               |
+| Labeled (new)     | `A -(label)> B`           | `API -(REST)> DB`                |
+| Sequence          | `A > B : Message`         | `User > App : Login`             |
+| Grouping (old)    | `[Name] { A, B }`         | `[Backend] { API, Worker }`      |
+| Grouping (new)    | `@ Name: A, B`            | `@ Backend: API, Worker`         |
+| Node              | `Name`                    | `Standalone`                     |
+| Mindmap root      | `mindmap: Root`           | `mindmap: My Project`            |
+| Mindmap branch    | `- Name`                  | `- Frontend`                     |
+| Mindmap leaf      | `-- Name`                 | `-- React`                       |
+| Timeline title    | `timeline: Title`         | `timeline: History`              |
+| Timeline period   | `- period : event`        | `- 2004 : Facebook`              |
+| Timeline events   | `- period : ev1, ev2`     | `- 2004 : Facebook, Google`      |
+| Timeline section  | `@ SectionName`           | `@ Early Days`                   |
 
 ---
 
@@ -128,4 +132,32 @@ mindmap: My Day
 -- Journal
 ```
 
-> **Tip:** You can mix all syntax types freely in one diagram. Both `[Group] { ... }` and `@ Group: ...` define clusters. Both `-[label]->` and `-(label)>` add labeled edges. Use `->` chains to lay out linear flows in a single line, and `> :` for message sequences. Use `mindmap:` to create hierarchical mind maps — when present, the output switches from `graph TD` to Mermaid's `mindmap` renderer.
+### Example 8 — Timeline: Social Media History
+```
+timeline: History of Social Media
+- 2002 : LinkedIn
+- 2004 : Facebook
+- 2005 : Youtube
+- 2006 : Twitter
+```
+
+### Example 9 — Timeline with Sections and Multiple Events
+```
+# Sections group related time periods.
+# Comma-separated values create multiple events per period.
+
+timeline: History of Social Media
+@ Early Days
+- 2002 : LinkedIn
+- 2004 : Facebook, Google
+@ Growth
+- 2005 : Youtube
+- 2006 : Twitter
+- 2007 : Tumblr, iPhone
+@ Modern Era
+- 2010 : Instagram, Pinterest
+- 2011 : Snapchat
+- 2016 : TikTok
+```
+
+> **Tip:** You can mix all syntax types freely in one diagram. Both `[Group] { ... }` and `@ Group: ...` define clusters. Both `-[label]->` and `-(label)>` add labeled edges. Use `->` chains to lay out linear flows in a single line, and `> :` for message sequences. Use `mindmap:` to create hierarchical mind maps and `timeline:` to create timeline charts — when present, the output switches from `graph TD` to Mermaid's `mindmap` or `timeline` renderer respectively.

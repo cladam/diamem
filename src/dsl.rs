@@ -20,14 +20,21 @@ pub fn compile_dsl(dsl: &str) -> Result<(String, Vec<String>), String> {
 
 /// Build Mermaid syntax from parsed statements.
 ///
-/// If any statement is a `Mindmap`, the output uses Mermaid's `mindmap`
-/// diagram type.  Otherwise it falls back to `graph TD`.
+/// If any statement is a `Timeline`, the output uses Mermaid's `timeline`
+/// diagram type.  If any statement is a `Mindmap`, the output uses Mermaid's
+/// `mindmap` diagram type.  Otherwise it falls back to `graph TD`.
 fn build_mermaid(statements: &[Statement]) -> String {
+    let has_timeline = statements
+        .iter()
+        .any(|s| matches!(s, Statement::Timeline { .. }));
+
     let has_mindmap = statements
         .iter()
         .any(|s| matches!(s, Statement::Mindmap { .. }));
 
-    if has_mindmap {
+    if has_timeline {
+        build_timeline(statements)
+    } else if has_mindmap {
         build_mindmap(statements)
     } else {
         build_graph(statements)
@@ -40,7 +47,7 @@ fn build_graph(statements: &[Statement]) -> String {
 
     for stmt in statements {
         match stmt {
-            Statement::Comment(_) | Statement::Mindmap { .. } => {}
+            Statement::Comment(_) | Statement::Mindmap { .. } | Statement::Timeline { .. } => {}
             Statement::Connection { from, to } => {
                 output.push_str(&format!("    {from} --> {to}\n"));
             }
@@ -86,6 +93,40 @@ fn build_mindmap(statements: &[Statement]) -> String {
             }
         }
         // Comments and graph statements are silently skipped in mindmap mode
+    }
+
+    output
+}
+
+/// Build a `timeline` Mermaid diagram.
+///
+/// DSL entries map to Mermaid timeline syntax:
+/// - `@ Section` (depth 0) → `section {text}`
+/// - `- period : evt1, evt2` (depth 1) → `    {period} : {evt1} : {evt2}`
+///
+/// Multiple events on the same period are colon-separated on one line,
+/// which is the canonical Mermaid timeline format.
+fn build_timeline(statements: &[Statement]) -> String {
+    let mut output = String::from("timeline\n");
+
+    for stmt in statements {
+        if let Statement::Timeline { title, entries } = stmt {
+            output.push_str(&format!("    title {title}\n"));
+            for entry in entries {
+                if entry.depth == 0 {
+                    // Section header (@ marker)
+                    output.push_str(&format!("    section {}\n", entry.text));
+                } else if entry.events.is_empty() {
+                    // Bare time period without events
+                    output.push_str(&format!("    {}\n", entry.text));
+                } else {
+                    // Time period with events — colon-separated on one line
+                    let events_str = entry.events.join(" : ");
+                    output.push_str(&format!("    {} : {}\n", entry.text, events_str));
+                }
+            }
+        }
+        // Comments and graph statements are silently skipped in timeline mode
     }
 
     output
@@ -263,5 +304,57 @@ mindmap: Root
         let result = dsl_to_mermaid("A -> B\n").unwrap();
         assert!(result.starts_with("graph TD\n"));
         assert!(!result.contains("mindmap\n"));
+    }
+
+    // ── Timeline ────────────────────────────────────────────────────────
+
+    #[test]
+    fn timeline_header() {
+        let input = "timeline: History\n- 2002 : LinkedIn\n";
+        let result = dsl_to_mermaid(input).unwrap();
+        assert!(result.starts_with("timeline\n"));
+        assert!(!result.contains("graph TD"));
+        assert!(!result.contains("mindmap"));
+    }
+
+    #[test]
+    fn timeline_title_and_periods() {
+        let input = "timeline: History\n- 2002 : LinkedIn\n- 2004 : Facebook\n";
+        let result = dsl_to_mermaid(input).unwrap();
+        assert!(result.contains("    title History\n"));
+        assert!(result.contains("    2002 : LinkedIn\n"));
+        assert!(result.contains("    2004 : Facebook\n"));
+    }
+
+    #[test]
+    fn timeline_multiple_events() {
+        let input = "timeline: History\n- 2004 : Facebook, Google\n";
+        let result = dsl_to_mermaid(input).unwrap();
+        assert!(result.contains("    2004 : Facebook : Google\n"));
+    }
+
+    #[test]
+    fn timeline_with_sections() {
+        let input = "\
+timeline: History
+@ Early Days
+- 2002 : LinkedIn
+- 2004 : Facebook
+@ Growth
+- 2005 : Youtube
+";
+        let result = dsl_to_mermaid(input).unwrap();
+        assert!(result.contains("    section Early Days\n"));
+        assert!(result.contains("    2002 : LinkedIn\n"));
+        assert!(result.contains("    2004 : Facebook\n"));
+        assert!(result.contains("    section Growth\n"));
+        assert!(result.contains("    2005 : Youtube\n"));
+    }
+
+    #[test]
+    fn timeline_does_not_emit_graph_td() {
+        let input = "timeline: X\n- 2000 : Y\n";
+        let result = dsl_to_mermaid(input).unwrap();
+        assert!(!result.contains("graph TD"));
     }
 }

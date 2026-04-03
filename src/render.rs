@@ -27,8 +27,19 @@ pub struct RenderedDiagram {
 
 /// Render Mermaid syntax to an SVG string using our dark theme.
 pub fn mermaid_to_svg(mermaid: &str) -> Result<String, String> {
-    let options = dark_render_options();
-    render_with_options(mermaid, options).map_err(|e| format!("{e}"))
+    let is_mindmap = mermaid.starts_with("mindmap\n");
+    let is_timeline = mermaid.starts_with("timeline\n");
+    let options = if is_mindmap {
+        dark_mindmap_render_options()
+    } else {
+        dark_render_options()
+    };
+    let svg = render_with_options(mermaid, options).map_err(|e| format!("{e}"))?;
+    if is_timeline {
+        Ok(recolor_timeline_svg(&svg))
+    } else {
+        Ok(svg)
+    }
 }
 
 /// Render a Mermaid diagram (with optional comment footer) and return pixel data.
@@ -128,12 +139,18 @@ fn render_composite(
     comments: &[String],
 ) -> Result<resvg::tiny_skia::Pixmap, String> {
     let is_mindmap = mermaid.starts_with("mindmap\n");
+    let is_timeline = mermaid.starts_with("timeline\n");
     let options = if is_mindmap {
         dark_mindmap_render_options()
     } else {
         dark_render_options()
     };
     let svg = render_with_options(mermaid, options).map_err(|e| format!("SVG render: {e}"))?;
+    let svg = if is_timeline {
+        recolor_timeline_svg(&svg)
+    } else {
+        svg
+    };
 
     let mut opt = usvg::Options::default();
     opt.fontdb_mut().load_system_fonts();
@@ -247,6 +264,23 @@ fn composite_vertically(
 }
 
 // ── Internal helpers ────────────────────────────────────────────────────────
+
+/// Replace the hardcoded light-pastel event-box fills emitted by the
+/// mermaid-rs-renderer with dark ilseon-palette equivalents.
+///
+/// The renderer cycles through six pastel colours for event boxes:
+///   `#ECECFF`, `#FFE6CC`, `#D5E8D4`, `#F8CECC`, `#FFF2CC`, `#E1D5E7`
+/// These are invisible on the dark `#121212` background and make the light
+/// `#E0E0E0` text unreadable.  We swap them for deep-toned fills that
+/// harmonise with the ilseon palette.
+fn recolor_timeline_svg(svg: &str) -> String {
+    svg.replace("#ECECFF", "#1A2D3A") // muted blue-teal
+        .replace("#FFE6CC", "#2E2518") // deep amber
+        .replace("#D5E8D4", "#1A2E24") // deep teal (matches Muted Teal)
+        .replace("#F8CECC", "#2E1A1A") // deep red (matches Muted Red)
+        .replace("#FFF2CC", "#2E2A18") // deep gold (matches Quiet Amber)
+        .replace("#E1D5E7", "#241E2E") // deep purple
+}
 
 fn dark_render_options() -> RenderOptions {
     RenderOptions {
@@ -505,5 +539,34 @@ mod tests {
     #[test]
     fn xml_escape_special_chars() {
         assert_eq!(xml_escape("<>&\"'"), "&lt;&gt;&amp;&quot;&apos;");
+    }
+
+    // ── recolor_timeline_svg ────────────────────────────────────────────
+
+    #[test]
+    fn timeline_recolor_replaces_all_pastels() {
+        let input = r##"fill="#ECECFF" fill="#FFE6CC" fill="#D5E8D4" fill="#F8CECC" fill="#FFF2CC" fill="#E1D5E7""##;
+        let result = recolor_timeline_svg(input);
+        // None of the light pastels should remain
+        assert!(!result.contains("#ECECFF"));
+        assert!(!result.contains("#FFE6CC"));
+        assert!(!result.contains("#D5E8D4"));
+        assert!(!result.contains("#F8CECC"));
+        assert!(!result.contains("#FFF2CC"));
+        assert!(!result.contains("#E1D5E7"));
+    }
+
+    #[test]
+    fn timeline_recolor_uses_dark_fills() {
+        let input = r##"fill="#ECECFF""##;
+        let result = recolor_timeline_svg(input);
+        assert!(result.contains("#1A2D3A"));
+    }
+
+    #[test]
+    fn timeline_recolor_leaves_other_colors_intact() {
+        let input = r##"fill="#121212" stroke="#5A9B80""##;
+        let result = recolor_timeline_svg(input);
+        assert_eq!(result, input);
     }
 }

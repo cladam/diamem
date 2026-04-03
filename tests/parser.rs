@@ -153,3 +153,56 @@ Solo
     assert!(matches!(&stmts[6], Statement::Sequence { .. }));
     assert!(matches!(&stmts[7], Statement::Node(_)));
 }
+
+// ── Timeline ────────────────────────────────────────────────────────────────
+
+#[test]
+fn parse_timeline_round_trip() {
+    let input = "\
+timeline: History
+- 2002 : LinkedIn
+- 2004 : Facebook
+";
+    let stmts = parser::parse(input).unwrap();
+    assert_eq!(stmts.len(), 1);
+    assert!(matches!(&stmts[0], Statement::Timeline { .. }));
+}
+
+#[test]
+fn parse_timeline_with_sections_round_trip() {
+    let input = "\
+timeline: History
+@ Early Days
+- 2002 : LinkedIn
+- 2004 : Facebook, Google
+@ Growth
+- 2006 : Twitter
+";
+    let stmts = parser::parse(input).unwrap();
+    if let Statement::Timeline { title, entries } = &stmts[0] {
+        assert_eq!(title, "History");
+        assert_eq!(entries.len(), 5);
+        // "Early Days" is a section header (no events)
+        assert!(entries[0].events.is_empty());
+        assert_eq!(entries[0].text, "Early Days");
+        // "2004" has two events
+        assert_eq!(entries[2].events, vec!["Facebook", "Google"]);
+    } else {
+        panic!("Expected Timeline statement");
+    }
+}
+
+#[test]
+fn parse_timeline_title_only() {
+    let stmts = parser::parse("timeline: Just Title\n").unwrap();
+    assert!(matches!(
+        &stmts[0],
+        Statement::Timeline { title, entries } if title == "Just Title" && entries.is_empty()
+    ));
+}
+
+#[test]
+fn timeline_word_without_colon_is_node() {
+    let stmts = parser::parse("timeline\n").unwrap();
+    assert!(matches!(&stmts[0], Statement::Node(n) if n == "timeline"));
+}

@@ -12,6 +12,18 @@ pub struct MindmapEntry {
     pub label: String,
 }
 
+/// A single entry in a timeline block: depth (dash count) + text + optional events.
+///
+/// Depth 1 without events → section header.
+/// Depth 1 with events → top-level time period.
+/// Depth 2 with events → time period inside a section.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TimelineEntry {
+    pub depth: usize,
+    pub text: String,
+    pub events: Vec<String>,
+}
+
 /// A parsed DSL statement.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
@@ -37,6 +49,10 @@ pub enum Statement {
     Mindmap {
         root: String,
         entries: Vec<MindmapEntry>,
+    },
+    Timeline {
+        title: String,
+        entries: Vec<TimelineEntry>,
     },
     Node(String),
 }
@@ -74,6 +90,45 @@ pub fn parse(input: &str) -> Result<Vec<Statement>, String> {
                         })
                         .collect();
                     statements.push(Statement::Mindmap { root, entries });
+                }
+                Rule::timeline_block => {
+                    let mut inner = inner.into_inner();
+                    let title = inner.next().unwrap().as_str().trim().to_string();
+                    let entries: Vec<TimelineEntry> = inner
+                        .filter(|p| p.as_rule() == Rule::timeline_entry)
+                        .map(|entry| {
+                            let mut parts = entry.into_inner();
+                            let marker = parts.next().unwrap().as_str();
+                            let content = parts.next().unwrap().as_str().trim().to_string();
+                            if marker == "@" {
+                                // Section header — never has events
+                                TimelineEntry {
+                                    depth: 0,
+                                    text: content,
+                                    events: vec![],
+                                }
+                            } else if let Some((period, events_str)) = content.split_once(':') {
+                                let events = events_str
+                                    .split(',')
+                                    .map(|e| e.trim().to_string())
+                                    .filter(|e| !e.is_empty())
+                                    .collect();
+                                TimelineEntry {
+                                    depth: 1,
+                                    text: period.trim().to_string(),
+                                    events,
+                                }
+                            } else {
+                                // Bare period without events
+                                TimelineEntry {
+                                    depth: 1,
+                                    text: content,
+                                    events: vec![],
+                                }
+                            }
+                        })
+                        .collect();
+                    statements.push(Statement::Timeline { title, entries });
                 }
                 Rule::connection => {
                     let idents: Vec<String> = inner
@@ -501,6 +556,97 @@ mod tests {
         // "mindmap" without ":" is a standalone node, not a mindmap block
         let stmts = parse("mindmap\n").unwrap();
         assert_eq!(stmts, vec![Statement::Node("mindmap".into())]);
+    }
+
+    // ── Timeline ──────────────────────────────────────────────────────
+
+    #[test]
+    fn parse_timeline_basic() {
+        let input = "timeline: History\n- 2002 : LinkedIn\n- 2004 : Facebook\n";
+        let stmts = parse(input).unwrap();
+        assert_eq!(
+            stmts,
+            vec![Statement::Timeline {
+                title: "History".into(),
+                entries: vec![
+                    TimelineEntry {
+                        depth: 1,
+                        text: "2002".into(),
+                        events: vec!["LinkedIn".into()],
+                    },
+                    TimelineEntry {
+                        depth: 1,
+                        text: "2004".into(),
+                        events: vec!["Facebook".into()],
+                    },
+                ],
+            }]
+        );
+    }
+
+    #[test]
+    fn parse_timeline_multiple_events() {
+        let input = "timeline: History\n- 2004 : Facebook, Google\n";
+        let stmts = parse(input).unwrap();
+        if let Statement::Timeline { entries, .. } = &stmts[0] {
+            assert_eq!(entries[0].events, vec!["Facebook", "Google"]);
+        } else {
+            panic!("Expected Timeline statement");
+        }
+    }
+
+    #[test]
+    fn parse_timeline_with_sections() {
+        let input = "\
+timeline: History
+@ Early Days
+- 2002 : LinkedIn
+- 2004 : Facebook, Google
+@ Growth
+- 2005 : Youtube
+- 2006 : Twitter
+";
+        let stmts = parse(input).unwrap();
+        if let Statement::Timeline { title, entries } = &stmts[0] {
+            assert_eq!(title, "History");
+            assert_eq!(entries.len(), 6);
+            // Section headers have depth 0 and no events
+            assert_eq!(
+                entries[0],
+                TimelineEntry {
+                    depth: 0,
+                    text: "Early Days".into(),
+                    events: vec![],
+                }
+            );
+            assert_eq!(entries[1].depth, 1);
+            assert_eq!(entries[1].text, "2002");
+            assert_eq!(entries[1].events, vec!["LinkedIn"]);
+            assert_eq!(entries[3].text, "Growth");
+            assert!(entries[3].events.is_empty());
+            assert_eq!(entries[5].events, vec!["Twitter"]);
+        } else {
+            panic!("Expected Timeline statement");
+        }
+    }
+
+    #[test]
+    fn parse_timeline_title_only() {
+        let stmts = parse("timeline: Just A Title\n").unwrap();
+        assert_eq!(
+            stmts,
+            vec![Statement::Timeline {
+                title: "Just A Title".into(),
+                entries: vec![],
+            }]
+        );
+    }
+
+    #[test]
+    fn parse_timeline_word_is_valid_node() {
+        // "timeline" without ":" is a standalone node, not a timeline block
+        let stmts = parse("timeline\n").unwrap();
+        assert_eq!(stmts, vec![Statement::Node("timeline".into())]);
     }
 
     // ── Empty / whitespace ───────────────────────────────────────────────

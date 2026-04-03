@@ -276,3 +276,68 @@ mindmap: Root
     assert!(mermaid.contains("mindmap\n"));
     assert_eq!(comments, vec!["Project overview"]);
 }
+
+// ── Timeline end-to-end ─────────────────────────────────────────────────────
+
+#[test]
+fn end_to_end_timeline() {
+    let input = "\
+timeline: Social Media History
+- 2002 : LinkedIn
+- 2004 : Facebook
+- 2005 : Youtube
+- 2006 : Twitter
+";
+    let mermaid = dsl_to_mermaid(input).unwrap();
+    assert!(mermaid.starts_with("timeline\n"));
+    assert!(mermaid.contains("    title Social Media History\n"));
+    assert!(mermaid.contains("    2002 : LinkedIn\n"));
+    assert!(mermaid.contains("    2004 : Facebook\n"));
+    assert!(mermaid.contains("    2005 : Youtube\n"));
+    assert!(mermaid.contains("    2006 : Twitter\n"));
+}
+
+#[test]
+fn end_to_end_timeline_with_sections() {
+    let input = "\
+timeline: History of Social Media
+@ Early Days
+- 2002 : LinkedIn
+- 2004 : Facebook, Google
+@ Growth
+- 2005 : Youtube
+- 2006 : Twitter
+";
+    let mermaid = dsl_to_mermaid(input).unwrap();
+    assert!(mermaid.starts_with("timeline\n"));
+    assert!(mermaid.contains("    section Early Days\n"));
+    assert!(mermaid.contains("    2002 : LinkedIn\n"));
+    assert!(mermaid.contains("    2004 : Facebook : Google\n"));
+    assert!(mermaid.contains("    section Growth\n"));
+    assert!(mermaid.contains("    2005 : Youtube\n"));
+    assert!(mermaid.contains("    2006 : Twitter\n"));
+}
+
+#[test]
+fn end_to_end_timeline_multiple_events() {
+    let input = "\
+timeline: Tech Milestones
+- 2007 : iPhone, Kindle
+- 2010 : iPad, Instagram
+";
+    let mermaid = dsl_to_mermaid(input).unwrap();
+    assert!(mermaid.contains("    2007 : iPhone : Kindle\n"));
+    assert!(mermaid.contains("    2010 : iPad : Instagram\n"));
+}
+
+#[test]
+fn timeline_comments_are_extracted() {
+    let input = "\
+# Social media timeline
+timeline: History
+- 2002 : LinkedIn
+";
+    let (mermaid, comments) = compile_dsl(input).unwrap();
+    assert!(mermaid.contains("timeline\n"));
+    assert_eq!(comments, vec!["Social media timeline"]);
+}
